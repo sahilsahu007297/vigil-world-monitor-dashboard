@@ -204,6 +204,24 @@ export default function StreetViewModal({ target, onClose, onNavigate }: StreetV
 
   const handleMouseUp = () => setIsDragging(false);
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsDragging(true);
+      setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - dragStart.x;
+    const dy = e.touches[0].clientY - dragStart.y;
+    setHeading(h => (h - dx * 0.4 + 360) % 360);
+    setPitch(p => Math.max(-25, Math.min(25, p + dy * 0.3)));
+    setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+  };
+
+  const handleTouchEnd = () => setIsDragging(false);
+
   const selectPreset = (preset: LandmarkPreset) => {
     setCurrentCoords(preset.coords);
     setHeading(preset.heading);
@@ -242,6 +260,9 @@ export default function StreetViewModal({ target, onClose, onNavigate }: StreetV
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
           style={{ cursor: isDragging ? "grabbing" : "grab" }}
         >
           <canvas ref={canvasRef} className="streetview-canvas" />

@@ -11,7 +11,7 @@ import FlightPanel, { AircraftDossier } from "./FlightPanel";
 import { hasPosition, isAircraftPosition, nearbyAircraft } from "./services/airplanes";
 import { publicCameras } from "./services/cameras";
 import vigilLogo from "./Vigil-Logo.png";
-import { AlertTriangle, BarChart3, Bluetooth, CloudSun, Database, Eye, Globe2, Layers, Navigation, PencilLine, Radio, Radar, Search, SlidersHorizontal, TowerControl, type LucideIcon } from "lucide-react";
+import { AlertTriangle, BarChart3, Bluetooth, CloudSun, Database, Eye, Globe2, Layers, Navigation, PencilLine, Radio, Radar, Search, SlidersHorizontal, TowerControl, Menu, X, Compass, Tv, type LucideIcon } from "lucide-react";
 import { SATELLITE_SOURCES, onSatelliteQuotaExceeded, type SatelliteImagerySource } from "./services/satellite-imagery";
 import { fetchCellTowers, type CellTower } from "./services/cell-towers";
 import StreetViewModal from "./StreetViewModal";
@@ -343,6 +343,7 @@ export default function App() {
   const [mapTarget, setMapTarget] = useState<[number, number] | undefined>(undefined);
   const [myLocation, setMyLocation] = useState<[number, number] | null>(null);
   const [locationStatus, setLocationStatus] = useState<"idle" | "locating" | "live" | "denied">("idle");
+  const [mobileDrawer, setMobileDrawer] = useState<"layers" | "intel" | "menu" | null>(null);
   const locationWatchRef = useRef<number | null>(null);
   const [earthquakes, setEarthquakes] = useState(31);
   const [quakeMarkers, setQuakeMarkers] = useState<GeoMarker[]>([]);
@@ -999,11 +1000,31 @@ export default function App() {
         <span className="live"><i /> LIVE</span>
         <button className="icon-btn">♢<b>3</b></button>
         <button className="avatar">A</button>
-
+      </div>
+      <div className="mobile-header-actions">
+        <button className="mobile-search-btn" onClick={() => setCommand(true)} aria-label="Search">
+          <Search size={16} />
+        </button>
+        <button
+          className={`mobile-menu-btn ${mobileDrawer === "menu" ? "active" : ""}`}
+          onClick={() => setMobileDrawer(d => d === "menu" ? null : "menu")}
+          aria-label="Toggle mobile menu"
+        >
+          {mobileDrawer === "menu" ? <X size={18} /> : <Menu size={18} />}
+        </button>
       </div>
     </header>
     <section className={`workspace ${rightPanelOpen ? "right-panel-expanded" : "right-panel-rail"}`}>
-      <aside className="left-panel panel">
+      <aside className={`left-panel panel ${mobileDrawer === "layers" ? "mobile-open" : ""}`}>
+        <div className="mobile-panel-header">
+          <div className="mobile-panel-title">
+            <Layers size={14} />
+            <span>MAP LAYERS & SATELLITE</span>
+          </div>
+          <button className="mobile-panel-close-btn" onClick={() => setMobileDrawer(null)} aria-label="Close layers">
+            <X size={16} />
+          </button>
+        </div>
         <div className="panel-title layer-panel-head"><span>MAP LAYERS</span><button onClick={selectAllLayers}>{on.size === layers.length ? "DESELECT ALL" : "SELECT ALL"}</button><small>{on.size} / {layers.length} ON</small></div>
         <button className="location-button" onClick={pinMyLocation}>{locationStatus === "live" ? "⌖ RECENTER ON MY LOCATION" : locationStatus === "locating" ? "⌖ LOCATING..." : locationStatus === "denied" ? "⌖ LOCATION UNAVAILABLE" : "⌖ PIN MY LOCATION"}</button>
 
@@ -1192,10 +1213,19 @@ export default function App() {
         <div className="map-count overlay"><span className="live"><i /> {(globeMarkers.length + earthquakes + (flightCount ?? 0)).toLocaleString()} SIGNALS</span><small>LIVE INGEST · GOOGLE NEWS · USGS · NWS · NASA · ADS-B</small></div>
         <div className="alert-ticker"><span>BREAKING</span><div>⚠ 4 origins corroborate increased disruption near Bab el-Mandeb <b>·</b> USGS M5.7 east of Honshu <b>·</b> Elevated GPS interference across eastern Mediterranean</div></div>
       </section>
-      <aside className={`right-panel panel ${rightPanelOpen ? "open" : "collapsed"}`}>
+      <aside className={`right-panel panel ${rightPanelOpen ? "open" : "collapsed"} ${mobileDrawer === "intel" ? "mobile-open" : ""}`}>
+        <div className="mobile-panel-header">
+          <div className="mobile-panel-title">
+            <Radar size={14} />
+            <span>GLOBAL INTEL & FEEDS</span>
+          </div>
+          <button className="mobile-panel-close-btn" onClick={() => { setRightPanelOpen(false); setMobileDrawer(null); }} aria-label="Close intel">
+            <X size={16} />
+          </button>
+        </div>
         <nav className="side-tabs">{rightPanelOptions.map(([label, Icon]) => <button key={label} title={label} aria-label={label} onClick={() => openTab(label)} className={tab === label ? "active" : ""}><span aria-hidden="true"><Icon size={18} strokeWidth={1.6} /></span><b>{label}</b></button>)}</nav>
         <div className="right-panel-content">
-        <div className="selected-panel-header"><div>{(() => { const [, SelectedIcon] = rightPanelOptions.find(([label]) => label === tab) || rightPanelOptions[0]; return <SelectedIcon size={17} strokeWidth={1.7} />; })()}<strong>{tab}</strong></div><button onClick={() => setRightPanelOpen(false)} aria-label="Close selected option">×</button></div>
+        <div className="selected-panel-header"><div>{(() => { const [, SelectedIcon] = rightPanelOptions.find(([label]) => label === tab) || rightPanelOptions[0]; return <SelectedIcon size={17} strokeWidth={1.7} />; })()}<strong>{tab}</strong></div><button onClick={() => { setRightPanelOpen(false); setMobileDrawer(null); }} aria-label="Close selected option">×</button></div>
         {tab === "Signals" && <><div className="section-head"><span>TOP SIGNALS</span><small>Fewer alerts. Real ones.</small></div>{signals.map(s => <article className="signal" key={s[0]}><i className={s[3]} /><div><h3>{s[0]}</h3><p>{s[1]} <b>·</b> {s[2]}</p></div></article>)}<div className="correlation"><p>AI CORRELATION ENGINE</p><h3>RISK + FLOW + MACRO</h3><span>Red Sea disruption is repricing shipping risk; Brent response remains contained while passage volume recovers.</span><button>Open evidence →</button></div></>}
         {tab === "Live Now" && <div className="live-now-panel"><div className="section-head"><span>LIVE NOW · GOOGLE NEWS & VERIFIED</span><small className={liveNowState === "live" ? "feed live" : "feed sample"}>{liveNowState === "live" ? "REFRESHING EVERY 90S" : liveNowState === "loading" ? "LOADING" : "FALLBACK DATA"}</small></div><form className="live-news-filters" onSubmit={event => { event.preventDefault(); setLiveNewsSearch(liveNewsSearch.trim()); }}><input value={liveNewsSearch} onChange={event => setLiveNewsSearch(event.target.value)} placeholder="Search global news..." aria-label="Search live global news" /><select value={liveNewsCountry} onChange={event => setLiveNewsCountry(event.target.value)} aria-label="Filter news by country"><option value="WORLD">World</option><option value="US">United States</option><option value="GB">United Kingdom</option><option value="IN">India</option><option value="CA">Canada</option><option value="AU">Australia</option><option value="DE">Germany</option><option value="FR">France</option><option value="JP">Japan</option><option value="BR">Brazil</option><option value="ZA">South Africa</option></select><button type="submit">SEARCH</button></form><p className="news-scope">Free global news index · {liveNewsCountry === "WORLD" ? "all countries" : liveNewsCountry} · newest monitored reports first</p>{liveNowItems.length === 0 && <p className="news-empty">{liveNowState === "loading" ? "Loading trusted global news…" : "No matching reports found."}</p>}{liveNowItems.map(item => <a className="newsitem live-now-item" key={item.id} href={item.link} target="_blank" rel="noreferrer">{item.image_url ? <img className="live-news-thumb" src={item.image_url} alt="" loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} /> : <span className="live-news-thumb news-thumb-placeholder">NEWS</span>}<div><h3>{item.title}</h3><p>{item.source} <b>·</b> {new Date(item.published).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p></div></a>)}</div>}
         {tab === "AI Brief" && <><div className="section-head"><span>AI INSIGHTS</span><small className={newsState === "ok" ? "feed live" : "feed sample"}>{newsState === "ok" ? "LIVE INPUTS" : "SAMPLE INPUTS"}</small></div>{aiInsights.map(item => <article className="ai-insight" key={item.label}><small>{item.label}</small><h3>{item.value}</h3><p>{item.detail}</p></article>)}<div className="open-source-panel"><p>FREE OPEN SOURCES</p>{openSources.map(source => <div key={source[0]}><strong>{source[0]}</strong><span>{source[1]}</span></div>)}</div><div className="correlation"><p>COUNTRY BRIEFING MODEL</p><h3>NEWS + LAYERS + MARKETS</h3><span>This is a browser-side intelligence synthesis using active map layers and current feed state. Connect a server LLM later for sourced long-form briefs.</span></div></>}
@@ -1212,6 +1242,164 @@ export default function App() {
         </div>
       </aside>
     </section>
+    {mobileDrawer && (
+      <div className="mobile-backdrop" onClick={() => setMobileDrawer(null)} />
+    )}
+
+    {mobileDrawer === "menu" && (
+      <div className="mobile-options-sheet">
+        <div className="mobile-options-header">
+          <div className="brand"><img src={vigilLogo} alt="VIGIL" /><span>VIGIL MENU</span></div>
+          <button className="mobile-panel-close-btn" onClick={() => setMobileDrawer(null)} aria-label="Close menu">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="mobile-options-body">
+          <div className="mobile-options-section">
+            <span className="mobile-options-label">INTELLIGENCE LENS</span>
+            <div className="mobile-lenses-grid">
+              {["World", "Tech", "Finance", "Commodity", "Energy", "Calm"].map(x => (
+                <button
+                  key={x}
+                  onClick={() => { setLens(x); setMobileDrawer(null); }}
+                  className={`mobile-lens-btn ${lens === x ? "active" : ""}`}
+                >
+                  {x}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mobile-options-section">
+            <span className="mobile-options-label">QUICK LAUNCH & TOOLS</span>
+            <div className="mobile-tools-grid">
+              <button
+                className="mobile-tool-btn"
+                onClick={() => { setShowNewsPanel(true); setMobileDrawer(null); }}
+              >
+                <span className="mobile-tool-icon">🌍</span>
+                <div>
+                  <strong>Global News Desk</strong>
+                  <small>Multilingual live channels</small>
+                </div>
+              </button>
+              <button
+                className="mobile-tool-btn"
+                onClick={() => { setShowSatelliteViewer(true); setMobileDrawer(null); }}
+              >
+                <span className="mobile-tool-icon">🛰️</span>
+                <div>
+                  <strong>Satellites Tracker</strong>
+                  <small>TLE orbit visualizer</small>
+                </div>
+              </button>
+              <button
+                className={`mobile-tool-btn ${streetViewMode ? "active" : ""}`}
+                onClick={() => { setStreetViewMode(m => !m); setMobileDrawer(null); }}
+              >
+                <span className="mobile-tool-icon"><Navigation size={15} /></span>
+                <div>
+                  <strong>360° Street View</strong>
+                  <small>{streetViewMode ? "Mode Active (Tap map)" : "Click map for 360°"}</small>
+                </div>
+              </button>
+              <button
+                className="mobile-tool-btn"
+                onClick={() => { setCommand(true); setMobileDrawer(null); }}
+              >
+                <span className="mobile-tool-icon"><Search size={15} /></span>
+                <div>
+                  <strong>Command & Search</strong>
+                  <small>Hotspots, bases, layers</small>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="mobile-options-section">
+            <span className="mobile-options-label">MAP VIEW & THEME</span>
+            <div className="mobile-settings-row">
+              <button
+                className={`mobile-setting-btn ${!flat ? "active" : ""}`}
+                onClick={() => { setFlat(false); setMobileDrawer(null); }}
+              >
+                ◎ 3D Globe
+              </button>
+              <button
+                className={`mobile-setting-btn ${flat ? "active" : ""}`}
+                onClick={() => { setFlat(true); setMobileDrawer(null); }}
+              >
+                ◫ 2D Mercator
+              </button>
+              <button
+                className="mobile-setting-btn"
+                onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
+              >
+                {theme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mobile-options-section">
+            <span className="mobile-options-label">LIVE BROADCAST</span>
+            <LiveTV channel={channel} setChannel={setChannel} lens={lens} />
+          </div>
+        </div>
+      </div>
+    )}
+
+    <nav className="mobile-bottom-dock" aria-label="Mobile Navigation">
+      <button
+        className={`mobile-dock-btn ${mobileDrawer === "layers" ? "active" : ""}`}
+        onClick={() => setMobileDrawer(d => d === "layers" ? null : "layers")}
+      >
+        <Layers size={18} />
+        <span>Layers</span>
+        {satelliteEnabled && <span className="dock-badge-dot" />}
+      </button>
+
+      <button
+        className={`mobile-dock-btn ${mobileDrawer === "intel" ? "active" : ""}`}
+        onClick={() => {
+          setRightPanelOpen(true);
+          setMobileDrawer(d => d === "intel" ? null : "intel");
+        }}
+      >
+        <Radar size={18} />
+        <span>Intel</span>
+      </button>
+
+      <button
+        className={`mobile-dock-btn ${streetViewMode ? "active" : ""}`}
+        onClick={() => {
+          setStreetViewMode(m => !m);
+          setMobileDrawer(null);
+        }}
+      >
+        <Navigation size={18} />
+        <span>360°</span>
+      </button>
+
+      <button
+        className={`mobile-dock-btn ${showNewsPanel ? "active" : ""}`}
+        onClick={() => {
+          setShowNewsPanel(true);
+          setMobileDrawer(null);
+        }}
+      >
+        <AlertTriangle size={18} />
+        <span>News</span>
+      </button>
+
+      <button
+        className={`mobile-dock-btn ${mobileDrawer === "menu" ? "active" : ""}`}
+        onClick={() => setMobileDrawer(d => d === "menu" ? null : "menu")}
+      >
+        <Menu size={18} />
+        <span>Menu</span>
+      </button>
+    </nav>
+
     <footer><span><i /> CONNECTED · STREAM SYNCHRONIZED</span><span>7 INDEPENDENT ALERT ORIGINS · NO SIGNUP · LOADS IN SECONDS</span><span>◌ DATA: GLOBAL PROXY · USGS · GDELT · ADS-B · AISSTREAM · CISA</span></footer>
     {dossier && <EventPanel event={dossier} onClose={() => setDossier(null)} />}
     {selectedAircraft && <AircraftDossier key={selectedAircraft.icao24} flight={selectedAircraft} onClose={() => setSelectedAircraft(null)} onLocate={f => { if (hasPosition(f)) { setMapTarget([f.lng, f.lat]); setZoom(2); } }} />}
