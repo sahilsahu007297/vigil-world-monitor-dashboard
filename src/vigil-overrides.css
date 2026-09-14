@@ -328,12 +328,47 @@
 }
 
 /* Layer rows: clear active + live/sample indication */
-.layer-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; box-shadow: 0 0 6px currentColor; }
-.layer-row { min-height: 27px; padding: 2px 4px; gap: 6px; font-size: 10px; overflow:hidden; }
+.layer-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; box-shadow: 0 0 6px currentColor; }
+.layer-row {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-height: 29px !important;
+  padding: 3px 6px !important;
+  gap: 7px !important;
+  box-sizing: border-box !important;
+  border-radius: 3px !important;
+}
 .layer-row .toggle { width: 18px; height: 10px; padding: 1px; flex: 0 0 18px; }
 .layer-row .toggle i { width: 6px; height: 6px; }
-.layer-row .layer-name { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.layer-row > b { flex:0 0 34px; text-align:right; }
+.layer-row .layer-name {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  overflow: hidden !important;
+}
+.layer-row .layer-name .layer-label-text {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  flex: 1 1 auto !important;
+  font-size: 11px !important;
+}
+.layer-row > b, .layer-row .layer-count-badge {
+  flex: 0 0 auto !important;
+  margin-left: auto !important;
+  min-width: 30px !important;
+  text-align: right !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: #c7bfae !important;
+  white-space: nowrap !important;
+  font-variant-numeric: tabular-nums !important;
+}
 .layer-panel-head { gap: 8px; }
 .layer-panel-head > span { flex: 1; }
 .layer-panel-head > button { border: 1px solid var(--bronze); background: var(--panel2); color: var(--gold); padding: 4px 6px; font: 8px "DM Mono"; letter-spacing: .04em; }
@@ -399,8 +434,7 @@
 .aircraft-row small { display: block; margin-top: 3px; color: var(--muted); font: 8px "DM Mono"; }
 .aircraft-row em { color: var(--gold); font: 8px "DM Mono"; font-style: normal; }
 .layer-row.active { color: #f0e9dc; }
-.layer-row.active > b { color: var(--gold); }
-.layer-name { display: inline-flex; align-items: center; gap: 6px; }
+.layer-name { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .feed { font: 7px "DM Mono"; letter-spacing: .08em; padding: 1px 4px; border-radius: 2px; font-style: normal; line-height: 1.4; }
 .feed.live { color: #0c0b07; background: #7fae9b; position: relative; }
 .feed.live::before {

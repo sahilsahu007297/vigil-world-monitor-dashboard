@@ -242,6 +242,65 @@ const infrastructurePoints: GeoMarker[] = [
   { lon: 139.7, lat: 35.7, kind: "infra", label: "Tokyo markets", detail: "Economic center and supply-chain signal" },
   { lon: 103.8, lat: 1.3, kind: "infra", label: "SEA internet hub", detail: "Cloud, cable, and outage watch" },
 ];
+const layerMarkerSamples: Record<string, GeoMarker[]> = {
+  "Intelligence hotspots": [
+    { lon: 77.2, lat: 28.6, kind: "conflict", label: "New Delhi intelligence hotspot", detail: "Political, economic, and security correlation" },
+    { lon: 116.4, lat: 39.9, kind: "conflict", label: "Beijing intelligence hotspot", detail: "Regional posture and trade policy signals" },
+  ],
+  "Sanctions pressure": [
+    { lon: -77.0, lat: 38.9, kind: "conflict", label: "Washington sanctions desk", detail: "Sanctions and policy pressure center" },
+    { lon: 37.6, lat: 55.7, kind: "conflict", label: "Moscow sanctions desk", detail: "Energy, defence, and sanctions exposure" },
+  ],
+  "Earthquakes · USGS": [
+    { lon: 142.0, lat: 38.3, kind: "hazard", mag: 5.7, label: "Honshu seismic event", detail: "USGS earthquake sample" },
+    { lon: -117.5, lat: 35.8, kind: "hazard", mag: 4.2, label: "California seismic event", detail: "USGS earthquake sample" },
+  ],
+  "Wildfires · EONET": [
+    { lon: -121.5, lat: 39.2, kind: "hazard", label: "California wildfire", detail: "NASA EONET fire sample" },
+    { lon: 135.5, lat: -25.2, kind: "hazard", label: "Australian wildfire", detail: "NASA EONET fire sample" },
+  ],
+  "Weather alerts": [
+    { lon: -97.0, lat: 38.0, kind: "hazard", label: "NWS severe weather", detail: "US public weather alerts sample" },
+    { lon: 78.0, lat: 22.0, kind: "hazard", label: "India weather alert", detail: "Public weather alert sample" },
+  ],
+  "Protest clusters": [
+    { lon: -74.0, lat: 40.7, kind: "conflict", label: "New York protest cluster", detail: "Public protest activity sample" },
+    { lon: 2.35, lat: 48.86, kind: "conflict", label: "Paris protest cluster", detail: "Public protest activity sample" },
+    { lon: 139.69, lat: 35.68, kind: "conflict", label: "Tokyo protest cluster", detail: "Public protest activity sample" },
+  ],
+  "Dark ships": [
+    { lon: 18.5, lat: 35.0, kind: "vessel", label: "Dark ship signal · Mediterranean", detail: "AIS gap and route anomaly" },
+    { lon: 121.5, lat: 21.5, kind: "vessel", label: "Dark ship signal · Taiwan Strait", detail: "AIS gap and route anomaly" },
+  ],
+  "Waterways": [
+    { lon: 32.35, lat: 30.5, kind: "vessel", label: "Suez waterway", detail: "High-density commercial route" },
+    { lon: 100.6, lat: 2.5, kind: "vessel", label: "Malacca waterway", detail: "High-density commercial route" },
+    { lon: -79.7, lat: 9.1, kind: "vessel", label: "Panama waterway", detail: "High-density commercial route" },
+  ],
+  "Trade routes": [
+    { lon: 9.0, lat: 36.0, kind: "vessel", label: "Europe-Asia trade route", detail: "Global shipping corridor" },
+    { lon: 80.0, lat: 10.0, kind: "vessel", label: "Indian Ocean trade route", detail: "Global shipping corridor" },
+    { lon: -35.0, lat: 15.0, kind: "vessel", label: "Atlantic trade route", detail: "Global shipping corridor" },
+  ],
+  "GPS jamming zones": [
+    { lon: 37.6, lat: 55.7, kind: "hazard", label: "Eastern Europe GPS interference", detail: "Navigation interference sample" },
+    { lon: 34.8, lat: 31.5, kind: "hazard", label: "Eastern Mediterranean GPS interference", detail: "Navigation interference sample" },
+  ],
+  "Internet outages": [
+    { lon: 28.98, lat: 41.0, kind: "infra", label: "Istanbul network outage", detail: "Connectivity disruption sample" },
+    { lon: 77.2, lat: 28.6, kind: "infra", label: "New Delhi network outage", detail: "Connectivity disruption sample" },
+    { lon: 151.2, lat: -33.9, kind: "infra", label: "Sydney network outage", detail: "Connectivity disruption sample" },
+  ],
+  "Camera feeds": [
+    { lon: 77.59, lat: 12.97, kind: "infra", label: "Bengaluru public camera", detail: "Public camera feed sample" },
+    { lon: -0.12, lat: 51.5, kind: "infra", label: "London public camera", detail: "Public camera feed sample" },
+    { lon: 139.7, lat: 35.68, kind: "infra", label: "Tokyo public camera", detail: "Public camera feed sample" },
+  ],
+  "Cell towers · OpenCellID": [
+    { lon: 77.59, lat: 12.97, kind: "infra", label: "Bengaluru cell tower", detail: "OpenCellID coverage sample" },
+    { lon: 72.88, lat: 19.07, kind: "infra", label: "Mumbai cell tower", detail: "OpenCellID coverage sample" },
+  ],
+};
 
 const LAYER_BASELINES: Record<string, string> = {
   "Conflict events": "47",
@@ -863,15 +922,22 @@ export default function App() {
   const on = useMemo(() => new Set(layers.filter(l => l.active).map(l => l.label)), [layers]);
   const globeMarkers = useMemo(() => {
     const out: GeoMarker[] = [];
+    const addLayerMarkers = (label: string, liveMarkers: GeoMarker[], sampleLabel = label) => {
+      const samples = layerMarkerSamples[sampleLabel] || [];
+      out.push(...(liveMarkers.length ? liveMarkers : samples));
+    };
     if (on.has("Conflict events")) out.push(...(globalConflictMarkers.length ? globalConflictMarkers : conflictPoints.slice(0, 4)));
-    if (on.has("Intelligence hotspots")) out.push(...intelligencePoints.filter(p => p.label.includes("hotspot")));
-    if (on.has("Protest clusters")) out.push(...conflictPoints.slice(4));
-    if (on.has("Sanctions pressure")) out.push(...intelligencePoints.filter(p => p.label.includes("sanctions")));
-    if (on.has("Earthquakes · USGS")) out.push(...quakeMarkers);
-    if (on.has("Wildfires · EONET")) out.push(...fireMarkers);
-    if (on.has("Weather alerts")) out.push(...(weatherMarkers.length ? weatherMarkers : [{ lon: -97, lat: 38, kind: "hazard" as const, label: "NWS severe weather", detail: "US public weather alerts sample" }]));
+    if (on.has("Intelligence hotspots")) addLayerMarkers("Intelligence hotspots", intelligencePoints.filter(p => p.label.includes("hotspot")));
+    if (on.has("Protest clusters")) addLayerMarkers("Protest clusters", conflictPoints.slice(4));
+    if (on.has("Sanctions pressure")) addLayerMarkers("Sanctions pressure", intelligencePoints.filter(p => p.label.includes("sanctions")));
+    if (on.has("Earthquakes · USGS")) addLayerMarkers("Earthquakes · USGS", quakeMarkers);
+    if (on.has("Wildfires · EONET")) addLayerMarkers("Wildfires · EONET", fireMarkers);
+    if (on.has("Weather alerts")) addLayerMarkers("Weather alerts", weatherMarkers);
     if (on.has("Canada alerts")) out.push(...intelligencePoints.filter(p => p.label.includes("Canada")));
-    if (on.has("Vessels · AIS") || on.has("Dark ships") || on.has("Waterways") || on.has("Trade routes")) out.push(...chokePoints);
+    if (on.has("Vessels · AIS")) out.push(...chokePoints);
+    if (on.has("Dark ships")) addLayerMarkers("Dark ships", []);
+    if (on.has("Waterways")) addLayerMarkers("Waterways", []);
+    if (on.has("Trade routes")) addLayerMarkers("Trade routes", []);
     if (on.has("Military flights")) out.push(...flightMarkers);
     if (on.has("Commercial flights")) out.push(...commercialFlightMarkers);
     if (on.has("Military bases")) out.push(...militaryBases);
@@ -879,10 +945,12 @@ export default function App() {
     if (on.has("Spaceports")) out.push(...strategicPoints.filter(p => p.label.includes("Spaceport") || p.label.includes("ISRO") || p.label.includes("Cape")));
     if (on.has("Critical minerals")) out.push(...strategicPoints.filter(p => p.label.includes("coal") || p.label.includes("mineral")));
     if (on.has("Pipelines")) out.push(...infrastructurePoints.filter(p => p.label.includes("pipelines")));
-    if (on.has("Internet outages")) out.push(...infrastructurePoints.filter(p => p.label.includes("internet")));
+    if (on.has("Internet outages")) addLayerMarkers("Internet outages", infrastructurePoints.filter(p => p.label.includes("internet")));
     if (on.has("Economic centers")) out.push(...infrastructurePoints.filter(p => p.label.includes("markets")));
     if (on.has("Submarine cables") || on.has("AI datacenters")) out.push(...infraPoints);
-    if (on.has("Camera feeds")) out.push(...cameraMarkers);
+    if (on.has("Camera feeds")) addLayerMarkers("Camera feeds", cameraMarkers);
+    if (on.has("GPS jamming zones")) addLayerMarkers("GPS jamming zones", []);
+    if (on.has("Cell towers · OpenCellID")) addLayerMarkers("Cell towers · OpenCellID", cellTowers.map(t => ({ lon: t.lon, lat: t.lat, kind: "infra" as const, label: t.operator || "Cell tower", detail: `${t.radio} · OpenCellID` })));
     if (myLocation) out.push({ lon: myLocation[0], lat: myLocation[1], kind: "base", label: "My live location", detail: "Browser GPS position · live location marker" });
     return out;
   }, [on, quakeMarkers, flightMarkers, commercialFlightMarkers, fireMarkers, weatherMarkers, globalConflictMarkers, cameraMarkers, myLocation]);
@@ -1567,13 +1635,27 @@ function LiveTV({ channel, setChannel, lens }: { channel: number; setChannel: (n
 }
 
 function LayerRow({ layer, status, onToggle }: { layer: Layer; status?: "live" | "sample"; onToggle: () => void }) {
-  const displayCount = (!layer.count || layer.count === "0") ? (LAYER_BASELINES[layer.label] || "12") : layer.count;
-  return <button className={layer.active ? "layer-row active" : "layer-row"} onClick={onToggle} aria-pressed={layer.active}>
-    <i className="layer-dot" style={{ backgroundColor: KIND_COLOR[layer.kind] }} />
-    <span className={layer.active ? "toggle on" : "toggle"}><i /></span>
-    <span className="layer-name">{layer.label}{status === "live" && layer.active && <em className="feed live">LIVE</em>}</span>
-    <b>{displayCount}</b>
-  </button>;
+  const rawCount = layer.count;
+  const fallback = LAYER_BASELINES[layer.label] || "12";
+  const displayCount = (rawCount && rawCount !== "0" && rawCount !== "" && rawCount !== "undefined")
+    ? rawCount
+    : fallback;
+  return (
+    <button
+      className={layer.active ? "layer-row active" : "layer-row"}
+      onClick={onToggle}
+      aria-pressed={layer.active}
+      title={`${layer.label}: ${displayCount}`}
+    >
+      <i className="layer-dot" style={{ backgroundColor: KIND_COLOR[layer.kind] }} />
+      <span className={layer.active ? "toggle on" : "toggle"}><i /></span>
+      <span className="layer-name">
+        <span className="layer-label-text">{layer.label}</span>
+        {status === "live" && layer.active && <em className="feed live">LIVE</em>}
+      </span>
+      <b className="layer-count-badge">{displayCount}</b>
+    </button>
+  );
 }
 function PointDialog({ point, satellite, news, onClose }: { point: GeoMarker; satellite?: GlobalSatellite; news: NewsArticle[]; onClose: () => void }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);

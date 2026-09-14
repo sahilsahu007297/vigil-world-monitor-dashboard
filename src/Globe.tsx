@@ -149,11 +149,11 @@ export default function Globe({
     const baseOptions: maplibregl.MapOptions = {
       container: mapContainer.current!,
       style: DARK_BASEMAP_STYLE,
-      center: [77.2, 22.0] as [number, number],
+      center: [0, 0] as [number, number],
       zoom: 1.8,
       minZoom: 1,
       maxZoom: 19,
-      pitch: flat ? 0 : 20,
+      pitch: 0,
       projection: { type: flat ? "mercator" : "globe" },
       attributionControl: { compact: true },
     };
@@ -504,7 +504,7 @@ export default function Globe({
       }
       map.current.resize();
       map.current.setProjection({ type: flatMode ? "mercator" : "globe" });
-      map.current.easeTo({ pitch: flatMode ? 0 : 20, duration: 700 });
+      map.current.easeTo({ pitch: 0, duration: 700 });
       if (!flatMode) {
         try {
           map.current.setSky({
