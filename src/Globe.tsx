@@ -149,7 +149,7 @@ export default function Globe({
     const baseOptions: maplibregl.MapOptions = {
       container: mapContainer.current!,
       style: DARK_BASEMAP_STYLE,
-      center: [0, 0] as [number, number],
+      center: [77.2, 22.0] as [number, number],
       zoom: 1.8,
       minZoom: 1,
       maxZoom: 19,
