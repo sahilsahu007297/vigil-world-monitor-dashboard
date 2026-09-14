@@ -1,0 +1,10 @@
+{
+  "description": "Access real-time global intelligence through an interactive dashboard that combines geopolitical, maritime, and market signals for informed decision-making.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

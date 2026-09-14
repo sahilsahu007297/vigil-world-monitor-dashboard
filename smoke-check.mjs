@@ -1,0 +1,15 @@
+import { chromium } from '@playwright/test';
+const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+page.on('requestfailed', r => console.log('FAILED', r.url().slice(0,100), r.failure()?.errorText));
+page.on('console', m => {if(m.type()==='error') console.log('ERROR',m.text().slice(0,300));});
+await page.goto('http://localhost:8443');
+await page.getByRole('button', {name:'Launch Dashboard',exact:true}).click();
+await page.getByRole('button', {name:'SEARCH FLIGHTS',exact:true}).click();
+await page.waitForTimeout(8000);
+console.log('FLIGHTS', await page.locator('.feed-explorer').innerText());
+console.log('MAP', await page.evaluate(() => ({ layers: window._globeMap?.getStyle()?.layers?.filter(x=>x.id==='flight-icons').map(x=>x.id), canvas: !!document.querySelector('canvas.maplibregl-canvas') })));
+await page.getByRole('button', {name:'EXPLORE PUBLIC CAMERAS'}).click();
+console.log('CAMERAS', (await page.locator('.feed-explorer').innerText()).slice(0,1200));
+await page.screenshot({path:'live-dashboard.png'});
+await browser.close();
