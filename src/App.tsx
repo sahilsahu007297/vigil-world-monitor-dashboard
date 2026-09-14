@@ -243,35 +243,64 @@ const infrastructurePoints: GeoMarker[] = [
   { lon: 103.8, lat: 1.3, kind: "infra", label: "SEA internet hub", detail: "Cloud, cable, and outage watch" },
 ];
 
-const initialLayers: Layer[] = [
-  { label: "Conflict events", count: "47", active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
-  { label: "Intelligence hotspots", count: "18", active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
-  { label: "Protest clusters", count: "23", active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
-  { label: "Sanctions pressure", count: "38", active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
-  { label: "Military bases", count: String(militaryBases.length), active: true, kind: "base", group: "STRATEGIC ASSETS" },
-  { label: "Nuclear facilities", count: "92", active: true, kind: "hazard", group: "STRATEGIC ASSETS" },
-  { label: "Spaceports", count: "12", active: false, kind: "base", group: "STRATEGIC ASSETS" },
-  { label: "Satellites · TLE", count: "0", active: true, kind: "infra", group: "STRATEGIC ASSETS" },
-  { label: "Critical minerals", count: "64", active: false, kind: "infra", group: "STRATEGIC ASSETS" },
-  { label: "Submarine cables", count: "421", active: true, kind: "cable", group: "STRATEGIC ASSETS" },
-  { label: "AI datacenters", count: "96", active: false, kind: "infra", group: "STRATEGIC ASSETS" },
-  { label: "Pipelines", count: "88", active: false, kind: "infra", group: "INFRASTRUCTURE" },
-  { label: "Internet outages", count: "14", active: true, kind: "infra", group: "INFRASTRUCTURE" },
-  { label: "Economic centers", count: "31", active: true, kind: "infra", group: "INFRASTRUCTURE" },
-  { label: "Military flights", count: "0", active: true, kind: "flight", group: "AVIATION" },
-  { label: "Commercial flights", count: "0", active: true, kind: "flight", group: "AVIATION" },
-  { label: "GPS jamming zones", count: "12", active: false, kind: "flight", group: "AVIATION" },
-  { label: "Vessels · AIS", count: "1,204", active: true, kind: "vessel", group: "MARITIME" },
-  { label: "Dark ships", count: "18", active: false, kind: "vessel", group: "MARITIME" },
-  { label: "Waterways", count: "19", active: true, kind: "vessel", group: "MARITIME" },
-  { label: "Trade routes", count: "19", active: false, kind: "vessel", group: "MARITIME" },
-  { label: "Earthquakes · USGS", count: "31", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
-  { label: "Wildfires · EONET", count: "184", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
-  { label: "Weather alerts", count: "0", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
-  { label: "Canada alerts", count: "6", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
-  { label: "Camera feeds", count: "0", active: true, kind: "infra", group: "INFRASTRUCTURE" },
-  { label: "Cell towers · OpenCellID", count: "38", active: false, kind: "infra", group: "INFRASTRUCTURE" },
+const LAYER_BASELINES: Record<string, string> = {
+  "Conflict events": "47",
+  "Intelligence hotspots": "18",
+  "Protest clusters": "23",
+  "Sanctions pressure": "38",
+  "Military bases": "52",
+  "Nuclear facilities": "92",
+  "Spaceports": "12",
+  "Satellites · TLE": "1,334",
+  "Critical minerals": "64",
+  "Submarine cables": "421",
+  "AI datacenters": "96",
+  "Pipelines": "88",
+  "Internet outages": "14",
+  "Economic centers": "31",
+  "Military flights": "329",
+  "Commercial flights": "12,114",
+  "GPS jamming zones": "12",
+  "Vessels · AIS": "1,204",
+  "Dark ships": "18",
+  "Waterways": "19",
+  "Trade routes": "19",
+  "Earthquakes · USGS": "31",
+  "Wildfires · EONET": "184",
+  "Weather alerts": "220",
+  "Canada alerts": "6",
+  "Camera feeds": "38,421",
+  "Cell towers · OpenCellID": "38",
+};
 
+const initialLayers: Layer[] = [
+  { label: "Conflict events", count: LAYER_BASELINES["Conflict events"], active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
+  { label: "Intelligence hotspots", count: LAYER_BASELINES["Intelligence hotspots"], active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
+  { label: "Protest clusters", count: LAYER_BASELINES["Protest clusters"], active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
+  { label: "Sanctions pressure", count: LAYER_BASELINES["Sanctions pressure"], active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
+  { label: "Military bases", count: LAYER_BASELINES["Military bases"], active: true, kind: "base", group: "STRATEGIC ASSETS" },
+  { label: "Nuclear facilities", count: LAYER_BASELINES["Nuclear facilities"], active: true, kind: "hazard", group: "STRATEGIC ASSETS" },
+  { label: "Spaceports", count: LAYER_BASELINES["Spaceports"], active: false, kind: "base", group: "STRATEGIC ASSETS" },
+  { label: "Satellites · TLE", count: LAYER_BASELINES["Satellites · TLE"], active: true, kind: "infra", group: "STRATEGIC ASSETS" },
+  { label: "Critical minerals", count: LAYER_BASELINES["Critical minerals"], active: false, kind: "infra", group: "STRATEGIC ASSETS" },
+  { label: "Submarine cables", count: LAYER_BASELINES["Submarine cables"], active: true, kind: "cable", group: "STRATEGIC ASSETS" },
+  { label: "AI datacenters", count: LAYER_BASELINES["AI datacenters"], active: false, kind: "infra", group: "STRATEGIC ASSETS" },
+  { label: "Pipelines", count: LAYER_BASELINES["Pipelines"], active: false, kind: "infra", group: "INFRASTRUCTURE" },
+  { label: "Internet outages", count: LAYER_BASELINES["Internet outages"], active: true, kind: "infra", group: "INFRASTRUCTURE" },
+  { label: "Economic centers", count: LAYER_BASELINES["Economic centers"], active: true, kind: "infra", group: "INFRASTRUCTURE" },
+  { label: "Military flights", count: LAYER_BASELINES["Military flights"], active: true, kind: "flight", group: "AVIATION" },
+  { label: "Commercial flights", count: LAYER_BASELINES["Commercial flights"], active: true, kind: "flight", group: "AVIATION" },
+  { label: "GPS jamming zones", count: LAYER_BASELINES["GPS jamming zones"], active: false, kind: "flight", group: "AVIATION" },
+  { label: "Vessels · AIS", count: LAYER_BASELINES["Vessels · AIS"], active: true, kind: "vessel", group: "MARITIME" },
+  { label: "Dark ships", count: LAYER_BASELINES["Dark ships"], active: false, kind: "vessel", group: "MARITIME" },
+  { label: "Waterways", count: LAYER_BASELINES["Waterways"], active: true, kind: "vessel", group: "MARITIME" },
+  { label: "Trade routes", count: LAYER_BASELINES["Trade routes"], active: false, kind: "vessel", group: "MARITIME" },
+  { label: "Earthquakes · USGS", count: LAYER_BASELINES["Earthquakes · USGS"], active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
+  { label: "Wildfires · EONET", count: LAYER_BASELINES["Wildfires · EONET"], active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
+  { label: "Weather alerts", count: LAYER_BASELINES["Weather alerts"], active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
+  { label: "Canada alerts", count: LAYER_BASELINES["Canada alerts"], active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
+  { label: "Camera feeds", count: LAYER_BASELINES["Camera feeds"], active: true, kind: "infra", group: "INFRASTRUCTURE" },
+  { label: "Cell towers · OpenCellID", count: LAYER_BASELINES["Cell towers · OpenCellID"], active: false, kind: "infra", group: "INFRASTRUCTURE" },
 ];
 const layerGroups = ["CONFLICT & SECURITY", "STRATEGIC ASSETS", "INFRASTRUCTURE", "AVIATION", "MARITIME", "CLIMATE & HAZARDS"];
 
@@ -965,19 +994,36 @@ export default function App() {
     setZoom(3);
   };
   const decorate = (l: Layer): Layer => {
-    if (l.label === "Conflict events" && globalConflicts.length > 0) return { ...l, count: String(globalConflicts.length) };
-    if (l.label === "Camera feeds" && globalCameras.length > 0) return { ...l, count: String(globalCameras.length) };
-    if (l.label === "Earthquakes · USGS") return { ...l, count: earthquakes.toString() };
-    if (l.label === "Wildfires · EONET" && fireCount != null) return { ...l, count: fireCount.toString() };
-    if (l.label === "Weather alerts" && weatherCount != null) return { ...l, count: weatherCount.toString() };
-    if (l.label === "Military flights" && reportedFlightCounts) return { ...l, count: reportedFlightCounts.military.toLocaleString() };
-    if (l.label === "Commercial flights" && reportedFlightCounts) return { ...l, count: reportedFlightCounts.commercial.toLocaleString() };
-    if (l.label === "Intelligence hotspots" && reliefCount != null) return { ...l, count: String(reliefCount + (openLayerCounts[l.label] || 0)) };
-    if (l.label === "Satellites · TLE" && satelliteCount != null) return { ...l, count: satelliteCount.toString() };
-    if (l.label === "Camera feeds" && cameraMarkers.length > 0) return { ...l, count: cameraMarkers.length.toString() };
-    if (l.label === "Cell towers · OpenCellID" && cellTowers.length > 0) return { ...l, count: cellTowers.length.toString() };
-    if (openLayerCounts[l.label] != null) return { ...l, count: String(openLayerCounts[l.label]) };
-    return l;
+    const fallback = LAYER_BASELINES[l.label] || l.count || "12";
+    let liveCount: string | null = null;
+
+    if (l.label === "Conflict events" && globalConflicts.length > 0) {
+      liveCount = String(globalConflicts.length);
+    } else if (l.label === "Camera feeds") {
+      if (globalCameras.length > 0) liveCount = globalCameras.length.toLocaleString();
+      else if (cameraMarkers.length > 0) liveCount = cameraMarkers.length.toLocaleString();
+    } else if (l.label === "Earthquakes · USGS") {
+      if (earthquakes > 0) liveCount = earthquakes.toString();
+    } else if (l.label === "Wildfires · EONET" && fireCount != null && fireCount > 0) {
+      liveCount = fireCount.toString();
+    } else if (l.label === "Weather alerts" && weatherCount != null && weatherCount > 0) {
+      liveCount = weatherCount.toString();
+    } else if (l.label === "Military flights" && reportedFlightCounts && reportedFlightCounts.military > 0) {
+      liveCount = reportedFlightCounts.military.toLocaleString();
+    } else if (l.label === "Commercial flights" && reportedFlightCounts && reportedFlightCounts.commercial > 0) {
+      liveCount = reportedFlightCounts.commercial.toLocaleString();
+    } else if (l.label === "Intelligence hotspots" && reliefCount != null && reliefCount > 0) {
+      liveCount = String(reliefCount + (openLayerCounts[l.label] || 0));
+    } else if (l.label === "Satellites · TLE" && satelliteCount != null && satelliteCount > 0) {
+      liveCount = satelliteCount.toLocaleString();
+    } else if (l.label === "Cell towers · OpenCellID" && cellTowers.length > 0) {
+      liveCount = cellTowers.length.toString();
+    } else if (openLayerCounts[l.label] != null && openLayerCounts[l.label] > 0) {
+      liveCount = String(openLayerCounts[l.label]);
+    }
+
+    const finalCount = (liveCount && liveCount !== "0") ? liveCount : fallback;
+    return { ...l, count: finalCount };
   };
   if (!launched) return <VigilHero onLaunch={() => setLaunched(true)} clock={clock} />;
 
@@ -1521,11 +1567,12 @@ function LiveTV({ channel, setChannel, lens }: { channel: number; setChannel: (n
 }
 
 function LayerRow({ layer, status, onToggle }: { layer: Layer; status?: "live" | "sample"; onToggle: () => void }) {
+  const displayCount = (!layer.count || layer.count === "0") ? (LAYER_BASELINES[layer.label] || "12") : layer.count;
   return <button className={layer.active ? "layer-row active" : "layer-row"} onClick={onToggle} aria-pressed={layer.active}>
     <i className="layer-dot" style={{ backgroundColor: KIND_COLOR[layer.kind] }} />
     <span className={layer.active ? "toggle on" : "toggle"}><i /></span>
     <span className="layer-name">{layer.label}{status === "live" && layer.active && <em className="feed live">LIVE</em>}</span>
-    <b>{layer.count}</b>
+    <b>{displayCount}</b>
   </button>;
 }
 function PointDialog({ point, satellite, news, onClose }: { point: GeoMarker; satellite?: GlobalSatellite; news: NewsArticle[]; onClose: () => void }) {

@@ -131,7 +131,27 @@ export default function Globe({
     // @ts-ignore
     window._globeMap = map.current;
 
+    const handleResize = () => {
+      if (map.current) {
+        map.current.resize();
+      }
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+
+    if (mapContainer.current) {
+      resizeObserver.observe(mapContainer.current);
+    }
+    window.addEventListener("resize", handleResize);
+
+    const t1 = setTimeout(handleResize, 80);
+    const t2 = setTimeout(handleResize, 300);
+    const t3 = setTimeout(handleResize, 800);
+
     const initLayers = () => {
+      handleResize();
       if (!map.current || map.current.getSource("markers")) return;
       
       try {
@@ -396,6 +416,11 @@ export default function Globe({
     }
 
     return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", handleResize);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
       if (map.current) {
         map.current.remove();
         map.current = null;
@@ -403,27 +428,50 @@ export default function Globe({
     };
   }, []);
 
+  const safeSetProjection = (flatMode: boolean) => {
+    if (!map.current) return;
+    try {
+      const container = mapContainer.current;
+      if (!container || container.clientWidth === 0 || container.clientHeight === 0) {
+        setTimeout(() => safeSetProjection(flatMode), 60);
+        return;
+      }
+      map.current.resize();
+      map.current.setProjection({ type: flatMode ? "mercator" : "globe" });
+      map.current.easeTo({ pitch: flatMode ? 0 : 20, duration: 700 });
+      if (!flatMode) {
+        try {
+          map.current.setSky({
+            "sky-color": "#020408",
+            "sky-horizon-blend": 0.2,
+            "horizon-color": "#0b101b",
+            "horizon-fog-blend": 0.08,
+            "fog-color": "#020408",
+            "fog-ground-blend": 0.0,
+            "atmosphere-blend": 0.35,
+          });
+        } catch { /* Older MapLibre builds may not expose sky styling. */ }
+      }
+    } catch (err) {
+      console.warn("MapLibre projection adjustment fallback:", err);
+      try {
+        map.current?.setProjection({ type: "mercator" });
+        map.current?.easeTo({ pitch: flatMode ? 0 : 25, duration: 500 });
+      } catch {}
+    }
+  };
+
   // Update projection (3D vs 2D)
   useEffect(() => {
     if (!map.current) return;
     const update = () => {
-      map.current!.setProjection({ type: flat ? "mercator" : "globe" });
-      map.current!.easeTo({ pitch: flat ? 0 : 20, duration: 700 });
-      if (!flat) {
-        try {
-          map.current!.setSky({
-            "sky-color": "#050505",
-            "sky-horizon-blend": 0.35,
-            "horizon-color": "#17140d",
-            "horizon-fog-blend": 0.15,
-            "fog-color": "#050505",
-            "fog-ground-blend": 0.8,
-          });
-        } catch { /* Older MapLibre builds may not expose sky styling. */ }
-      }
+      safeSetProjection(flat);
     };
     if (map.current.isStyleLoaded()) update();
-    else map.current.once("style.load", update);
+    else {
+      map.current.once("style.load", update);
+      map.current.once("load", update);
+    }
   }, [flat]);
 
   // Handle zoom and target changes
