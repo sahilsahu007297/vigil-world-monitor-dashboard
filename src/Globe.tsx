@@ -95,14 +95,66 @@ export default function Globe({
   useEffect(() => {
     if (map.current) return;
 
+    const DARK_BASEMAP_STYLE: maplibregl.StyleSpecification = {
+      version: 8,
+      sources: {
+        "esri-dark": {
+          type: "raster",
+          tiles: [
+            "https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+          ],
+          tileSize: 256,
+          attribution: "© Esri, HERE, Garmin, © OpenStreetMap contributors",
+          maxzoom: 16,
+        },
+        "esri-dark-ref": {
+          type: "raster",
+          tiles: [
+            "https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+          ],
+          tileSize: 256,
+          attribution: "© Esri",
+          maxzoom: 16,
+        },
+      },
+      layers: [
+        {
+          id: "background",
+          type: "background",
+          paint: {
+            "background-color": "#060a10",
+          },
+        },
+        {
+          id: "esri-dark-tiles",
+          type: "raster",
+          source: "esri-dark",
+          paint: {
+            "raster-opacity": 1.0,
+            "raster-fade-duration": 100,
+          },
+        },
+        {
+          id: "esri-dark-ref-tiles",
+          type: "raster",
+          source: "esri-dark-ref",
+          paint: {
+            "raster-opacity": 0.7,
+            "raster-fade-duration": 100,
+          },
+        },
+      ],
+    };
+
     const baseOptions: maplibregl.MapOptions = {
       container: mapContainer.current!,
-      style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-      center: [77.2, 28.6] as [number, number],
-      zoom: 1.5,
+      style: DARK_BASEMAP_STYLE,
+      center: [77.2, 22.0] as [number, number],
+      zoom: 1.8,
       minZoom: 1,
       maxZoom: 19,
-      pitch: 0,
+      pitch: flat ? 0 : 20,
+      projection: { type: flat ? "mercator" : "globe" },
       attributionControl: { compact: true },
     };
 
@@ -330,6 +382,20 @@ export default function Globe({
           satLayerRef.current = createSatelliteLayer('sat-3d');
           map.current.addLayer(satLayerRef.current as any);
         }
+
+        if (!flat) {
+          try {
+            map.current.setSky({
+              "sky-color": "#020408",
+              "sky-horizon-blend": 0.25,
+              "horizon-color": "#0e1a2f",
+              "horizon-fog-blend": 0.1,
+              "fog-color": "#020408",
+              "fog-ground-blend": 0.0,
+              "atmosphere-blend": 0.45,
+            });
+          } catch {}
+        }
       } catch (e) {
         console.error("Failed to add layers to map", e);
       }
@@ -478,10 +544,12 @@ export default function Globe({
   useEffect(() => {
     if (!map.current) return;
     const update = () => {
-      const options: any = { zoom: Math.min(19, Math.max(1.5, zoom * 3.5)) };
+      const targetZoom = target
+        ? Math.max(4.5, zoom * 2.5)
+        : Math.min(19, Math.max(1.4, +(zoom * 1.8).toFixed(2)));
+      const options: any = { zoom: targetZoom };
       if (target) {
         options.center = target;
-        options.zoom = Math.max(5, options.zoom);
       }
       map.current!.flyTo(options);
     };
