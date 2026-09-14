@@ -301,6 +301,13 @@ const layerMarkerSamples: Record<string, GeoMarker[]> = {
     { lon: 72.88, lat: 19.07, kind: "infra", label: "Mumbai cell tower", detail: "OpenCellID coverage sample" },
   ],
 };
+const fallbackFlightMarkers: GeoMarker[] = [
+  { lon: 77.6, lat: 13.0, kind: "flight", label: "6E 402", detail: "Commercial aircraft · sample position", heading: 72 },
+  { lon: 2.35, lat: 48.86, kind: "flight", label: "AF 276", detail: "Commercial aircraft · sample position", heading: 110 },
+  { lon: -73.78, lat: 40.64, kind: "flight", label: "UA 18", detail: "Commercial aircraft · sample position", heading: 250 },
+  { lon: 37.62, lat: 55.75, kind: "flight", label: "MIL-01", detail: "Military aircraft · sample position", heading: 180 },
+  { lon: 121.47, lat: 31.23, kind: "flight", label: "MIL-02", detail: "Military aircraft · sample position", heading: 315 },
+];
 
 const LAYER_BASELINES: Record<string, string> = {
   "Conflict events": "47",
@@ -799,6 +806,13 @@ export default function App() {
         mark("Military flights", "live"); mark("Commercial flights", "live");
       } catch (e) {
         if (!live) return;
+        const fallbackMilitary = fallbackFlightMarkers.filter(marker => marker.label.startsWith("MIL"));
+        const fallbackCommercial = fallbackFlightMarkers.filter(marker => !marker.label.startsWith("MIL"));
+        setFlightMarkers(fallbackMilitary);
+        setCommercialFlightMarkers(fallbackCommercial);
+        setFlightCount(fallbackFlightMarkers.length);
+        setMilitaryFlightCount(fallbackMilitary.length);
+        setCommercialFlightCount(fallbackCommercial.length);
         setFlightStatus(`${(e as Error).message} · retaining last known aircraft`); mark("Military flights", "sample"); mark("Commercial flights", "sample");
       }
     };
@@ -938,8 +952,8 @@ export default function App() {
     if (on.has("Dark ships")) addLayerMarkers("Dark ships", []);
     if (on.has("Waterways")) addLayerMarkers("Waterways", []);
     if (on.has("Trade routes")) addLayerMarkers("Trade routes", []);
-    if (on.has("Military flights")) out.push(...flightMarkers);
-    if (on.has("Commercial flights")) out.push(...commercialFlightMarkers);
+    if (on.has("Military flights")) out.push(...(flightMarkers.length ? flightMarkers : fallbackFlightMarkers.filter(marker => marker.label.startsWith("MIL"))));
+    if (on.has("Commercial flights")) out.push(...(commercialFlightMarkers.length ? commercialFlightMarkers : fallbackFlightMarkers.filter(marker => !marker.label.startsWith("MIL"))));
     if (on.has("Military bases")) out.push(...militaryBases);
     if (on.has("Nuclear facilities")) out.push(...strategicPoints.filter(p => p.label.includes("nuclear")));
     if (on.has("Spaceports")) out.push(...strategicPoints.filter(p => p.label.includes("Spaceport") || p.label.includes("ISRO") || p.label.includes("Cape")));
@@ -1245,8 +1259,11 @@ export default function App() {
             </button>
             <button
               className={streetViewMode ? "active" : ""}
-              onClick={() => setStreetViewMode(m => !m)}
-              title="Toggle Street View Mode (Click anywhere on globe)"
+              onClick={() => {
+                setStreetViewTarget(flightCenter || [77.42682, 23.1776]);
+                setStreetViewMode(false);
+              }}
+              title="Open Street View at the current map center"
             >
               <Navigation size={11} style={{ display: "inline", verticalAlign: "-1px", marginRight: 3 }} />
               Street View 360°
@@ -1409,12 +1426,16 @@ export default function App() {
               </button>
               <button
                 className={`mobile-tool-btn ${streetViewMode ? "active" : ""}`}
-                onClick={() => { setStreetViewMode(m => !m); setMobileDrawer(null); }}
+                onClick={() => {
+                  setStreetViewTarget(flightCenter || [77.42682, 23.1776]);
+                  setStreetViewMode(false);
+                  setMobileDrawer(null);
+                }}
               >
                 <span className="mobile-tool-icon"><Navigation size={15} /></span>
                 <div>
                   <strong>360° Street View</strong>
-                  <small>{streetViewMode ? "Mode Active (Tap map)" : "Click map for 360°"}</small>
+                  <small>Open current map center</small>
                 </div>
               </button>
               <button
