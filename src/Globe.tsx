@@ -32,6 +32,7 @@ export const KIND_COLOR: Record<GeoMarker["kind"], string> = {
 export default function Globe({
   markers,
   satellites = [],
+  cables = null,
   flat,
   zoom,
   target,
@@ -48,6 +49,7 @@ export default function Globe({
 }: {
   markers: GeoMarker[];
   satellites?: GlobalSatellite[];
+  cables?: FeatureCollection | null;
   flat: boolean;
   zoom: number;
   target?: [number, number];
@@ -154,7 +156,6 @@ export default function Globe({
       minZoom: 1,
       maxZoom: 19,
       pitch: 0,
-      projection: { type: flat ? "mercator" : "globe" },
       attributionControl: { compact: true },
     };
 
@@ -540,6 +541,24 @@ export default function Globe({
     }
   }, [flat]);
 
+  useEffect(() => {
+    const currentMap = map.current;
+    if (!currentMap) return;
+    const update = () => {
+      if (map.current !== currentMap) return;
+      const source = currentMap.getSource("submarine-cables") as maplibregl.GeoJSONSource | undefined;
+      const data: FeatureCollection = cables || { type: "FeatureCollection", features: [] };
+      if (source) source.setData(data);
+      else {
+        currentMap.addSource("submarine-cables", { type: "geojson", data });
+        currentMap.addLayer({ id: "submarine-cables", type: "line", source: "submarine-cables", paint: { "line-color": "#70ddcb", "line-width": 1.5, "line-opacity": 0.8 } });
+      }
+    };
+    if (currentMap.isStyleLoaded()) update();
+    currentMap.on("style.load", update);
+    return () => { currentMap.off("style.load", update); };
+  }, [cables]);
+
   // Handle zoom and target changes
   useEffect(() => {
     if (!map.current) return;
@@ -720,7 +739,8 @@ export default function Globe({
   // Update satellites
   useEffect(() => {
     if (!satLayerRef.current || !map.current) return;
-    const pts = satellites.map(s => ({
+    const visibleSatellites = satellites;
+    const pts = visibleSatellites.map(s => ({
       lat: s.lat,
       lng: s.lng,
       altKm: s.alt,
@@ -733,7 +753,7 @@ export default function Globe({
         const source = map.current?.getSource("satellite-points") as maplibregl.GeoJSONSource | undefined;
         source?.setData({
           type: "FeatureCollection",
-          features: satellites.map((satellite, index) => ({
+          features: visibleSatellites.map((satellite, index) => ({
             type: "Feature",
             geometry: { type: "Point", coordinates: [satellite.lng, satellite.lat] },
             properties: { index, color: satellite.color || "#00e5ff" },

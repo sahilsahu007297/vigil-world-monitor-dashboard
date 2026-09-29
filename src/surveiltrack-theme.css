@@ -1,0 +1,1248 @@
+/* ==========================================================================
+   SURVEILTRACK TACTICAL HUD & VELOX GLASSMORPHISM THEME
+   Tailored to exact specifications from the reference screenshots
+   ========================================================================== */
+
+:root {
+  --tactical-bg: #090a0d;
+  --tactical-panel: #111317;
+  --tactical-panel-elevated: #16191f;
+  --tactical-panel-translucent: rgba(17, 19, 23, 0.88);
+  --tactical-border: #232731;
+  --tactical-border-light: #363c4a;
+  --tactical-border-bracket: #9ca3af;
+  --tactical-accent: #e5e7eb;
+  --tactical-green: #22c55e;
+  --tactical-amber: #f59e0b;
+  --tactical-red: #ef4444;
+  --tactical-muted: #788191;
+  --tactical-dim: #434955;
+  --font-tactical-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+  --font-tactical-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Velox Emerald Flight Theme Tokens */
+  --velox-bg: #050f0c;
+  --velox-card: rgba(11, 28, 23, 0.82);
+  --velox-card-border: rgba(35, 78, 66, 0.45);
+  --velox-emerald: #10b981;
+  --velox-emerald-light: #34d399;
+  --velox-orange: #f97316;
+  --velox-orange-hover: #fb923c;
+  --velox-text-dim: #7da598;
+}
+
+/* Base Tactical Resets */
+.tactical-shell {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--tactical-bg);
+  color: var(--tactical-accent);
+  font-family: var(--font-tactical-sans);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+}
+
+/* ==========================================================================
+   1. TACTICAL CORNER BRACKET DECORATIONS
+   ========================================================================== */
+
+.tactical-bracket-box {
+  position: relative;
+}
+
+.tactical-bracket-box::before,
+.tactical-bracket-box::after {
+  content: "";
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.tactical-bracket-box::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid var(--tactical-border-bracket);
+  border-left: 2px solid var(--tactical-border-bracket);
+}
+
+.tactical-bracket-box::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid var(--tactical-border-bracket);
+  border-right: 2px solid var(--tactical-border-bracket);
+}
+
+.tactical-bracket-full::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+}
+
+.tactical-bracket-full::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid #ffffff;
+  border-right: 2px solid #ffffff;
+}
+
+/* Secondary corner markers */
+.bracket-tr,
+.bracket-bl {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.bracket-tr {
+  top: -1px;
+  right: -1px;
+  border-top: 2px solid #ffffff;
+  border-right: 2px solid #ffffff;
+}
+
+.bracket-bl {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+}
+
+/* ==========================================================================
+   2. TOP BAR (SURVEILTRACK HEADER)
+   ========================================================================== */
+
+.surveil-topbar {
+  height: 60px;
+  background: rgba(14, 16, 20, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--tactical-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  z-index: 40;
+  position: relative;
+}
+
+.surveil-topbar-bracket-left {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  width: 14px;
+  height: 44px;
+  border-left: 2px solid #4a5160;
+  border-top: 2px solid #4a5160;
+  border-bottom: 2px solid #4a5160;
+  pointer-events: none;
+}
+
+.surveil-topbar-bracket-right {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 14px;
+  height: 44px;
+  border-right: 2px solid #4a5160;
+  border-top: 2px solid #4a5160;
+  border-bottom: 2px solid #4a5160;
+  pointer-events: none;
+}
+
+.surveil-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-tactical-sans);
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+.surveil-logo-icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 3px;
+  transform: rotate(45deg);
+}
+
+.surveil-logo-icon span {
+  background: #ffffff;
+  border-radius: 1px;
+}
+
+.surveil-logo-icon span:nth-child(2) {
+  opacity: 0.8;
+}
+.surveil-logo-icon span:nth-child(3) {
+  opacity: 0.6;
+}
+.surveil-logo-icon span:nth-child(4) {
+  opacity: 0.9;
+}
+
+/* Nav Links */
+.surveil-nav {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.surveil-nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--tactical-muted);
+  font-family: var(--font-tactical-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 6px 0;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.surveil-nav-btn:hover {
+  color: #ffffff;
+}
+
+.surveil-nav-btn.active {
+  color: #ffffff;
+}
+
+.surveil-nav-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: -4px;
+  right: -4px;
+  height: 2px;
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+/* Topbar Right Meta */
+.surveil-meta {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  font-family: var(--font-tactical-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #c5cbd6;
+}
+
+.surveil-location,
+.surveil-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* City / District / Street Sub-filter */
+.surveil-filter-bar {
+  display: flex;
+  align-items: center;
+  background: rgba(18, 20, 26, 0.9);
+  border: 1px solid var(--tactical-border);
+  padding: 3px;
+  border-radius: 3px;
+  margin: 0 auto;
+}
+
+.surveil-filter-pill {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--tactical-muted);
+  font-family: var(--font-tactical-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.surveil-filter-pill:hover {
+  color: #e5e7eb;
+}
+
+.surveil-filter-pill.active {
+  background: #1e222b;
+  border: 1px solid #3d4352;
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ==========================================================================
+   3. LEFT TACTICAL COMMAND RAIL
+   ========================================================================= */
+
+.tactical-rail {
+  width: 60px;
+  background: #0d0e12;
+  border-right: 1px solid var(--tactical-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0;
+  z-index: 35;
+  justify-content: space-between;
+}
+
+.tactical-rail-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+}
+
+.tactical-rail-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+.tactical-rail-btn {
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--tactical-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tactical-rail-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tactical-rail-btn.active {
+  color: #ffffff;
+  border: 1px solid #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.12);
+}
+
+/* Bracket styling on active rail button */
+.tactical-rail-btn.active::before,
+.tactical-rail-btn.active::after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  pointer-events: none;
+}
+.tactical-rail-btn.active::before {
+  top: -2px;
+  left: -2px;
+  border-top: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+}
+.tactical-rail-btn.active::after {
+  bottom: -2px;
+  right: -2px;
+  border-bottom: 2px solid #ffffff;
+  border-right: 2px solid #ffffff;
+}
+
+.tactical-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #4a5160;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c5cbd6;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   4. ACTIVE UNIT HUD CARD (EXACT SCREENSHOT REPLICA)
+   ========================================================================== */
+
+.tactical-hud-panel {
+  position: absolute;
+  top: 85px;
+  left: 95px;
+  width: 290px;
+  background: rgba(14, 16, 21, 0.94);
+  backdrop-filter: blur(14px);
+  border: 1px solid #2d3340;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  z-index: 30;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* High-tech wireframe visualizer */
+.tactical-wireframe-box {
+  width: 100%;
+  height: 120px;
+  background: radial-gradient(circle at center, #1b2029 0%, #0d0f14 85%);
+  border: 1px solid #272d38;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tactical-wireframe-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 16px 16px;
+  pointer-events: none;
+}
+
+.tactical-details-link {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(15, 17, 22, 0.8);
+  border: 1px solid #363d4c;
+  color: #e5e7eb;
+  font-family: var(--font-tactical-mono);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tactical-details-link:hover {
+  background: #252a36;
+  border-color: #525c70;
+  color: #ffffff;
+}
+
+/* Unit Status Header */
+.tactical-hud-unit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-tactical-mono);
+}
+
+.tactical-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.status-dot-active {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--tactical-green);
+  box-shadow: 0 0 8px var(--tactical-green);
+  animation: pulse-dot 2s infinite;
+}
+
+.status-dot-inactive {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--tactical-red);
+}
+
+.status-dot-disabled {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #9ca3af;
+}
+
+.tactical-unit-title {
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+/* Telemetry Key-Value Rows */
+.tactical-hud-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font-tactical-mono);
+  font-size: 11px;
+}
+
+.tactical-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tactical-metric-row .metric-label {
+  color: var(--tactical-muted);
+  letter-spacing: 0.04em;
+}
+
+.tactical-metric-row .metric-val {
+  color: #e5e7eb;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Segmented Battery / Meter Bar */
+.segmented-meter-small {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.segmented-meter-small span {
+  display: inline-block;
+  width: 3px;
+  height: 10px;
+  background: #313745;
+}
+
+.segmented-meter-small span.filled {
+  background: #ffffff;
+}
+
+/* Sub tabs: PERFORMANCE / HEALTH */
+.tactical-subtabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.tactical-subtab-btn {
+  background: transparent;
+  border: 1px solid #2d3340;
+  color: var(--tactical-muted);
+  font-family: var(--font-tactical-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 6px 0;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tactical-subtab-btn:hover {
+  color: #e5e7eb;
+  border-color: #4b5569;
+}
+
+.tactical-subtab-btn.active {
+  background: #1e222a;
+  border-color: #5b6579;
+  color: #ffffff;
+}
+
+/* Main Segmented Performance Gauge */
+.tactical-big-gauge-box {
+  background: #111317;
+  border: 1px solid #262b35;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tactical-segmented-bar {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tactical-tick {
+  flex: 1;
+  height: 16px;
+  background: #252b36;
+  border-radius: 1px;
+}
+
+.tactical-tick.filled {
+  background: #ffffff;
+}
+
+.tactical-gauge-percent {
+  font-family: var(--font-tactical-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-left: 8px;
+  min-width: 34px;
+  text-align: right;
+}
+
+.tactical-readout-text {
+  font-family: var(--font-tactical-mono);
+  font-size: 9px;
+  color: var(--tactical-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ==========================================================================
+   5. BOTTOM TACTICAL UNIT DOCK (EXACT SCREENSHOT REPLICA)
+   ========================================================================== */
+
+.tactical-bottom-dock {
+  position: absolute;
+  bottom: 0;
+  left: 60px; /* offset by left rail */
+  right: 0;
+  background: rgba(12, 14, 18, 0.95);
+  backdrop-filter: blur(16px);
+  border-top: 1px solid var(--tactical-border);
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Angled Chamfered Tab Strip */
+.tactical-dock-tabs {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--tactical-border);
+  padding: 0 16px;
+  gap: 4px;
+  background: #0a0b0e;
+}
+
+.tactical-dock-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  color: var(--tactical-muted);
+  font-family: var(--font-tactical-sans);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 9px 18px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.18s ease;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+}
+
+.tactical-dock-tab:hover {
+  color: #e5e7eb;
+}
+
+.tactical-dock-tab.active {
+  background: #14171d;
+  border: 1px solid #353c4b;
+  border-bottom: 1px solid #14171d;
+  color: #ffffff;
+  font-weight: 600;
+  margin-bottom: -1px;
+}
+
+/* Horizontal Unit Cards Strip */
+.tactical-dock-content {
+  padding: 12px 16px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #2d3340 transparent;
+}
+
+.tactical-unit-card {
+  background: #121419;
+  border: 1px solid #2b313d;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-tactical-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.tactical-unit-card:hover {
+  background: #191c23;
+  border-color: #4a5468;
+}
+
+.tactical-unit-card.active {
+  background: #1a1e27;
+  border-color: #ffffff;
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.1);
+}
+
+.tactical-unit-card .card-external-icon {
+  color: var(--tactical-muted);
+  font-size: 12px;
+  margin-left: 2px;
+}
+
+.tactical-unit-card:hover .card-external-icon,
+.tactical-unit-card.active .card-external-icon {
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   6. TACTICAL MAP & HUD CALLOUT LINE
+   ========================================================================== */
+
+.tactical-map-viewport {
+  position: absolute;
+  top: 60px;
+  bottom: 86px;
+  left: 60px;
+  right: 0;
+  background: #08090b;
+  overflow: hidden;
+}
+
+/* Map Zoom Controls on bottom-right */
+.tactical-map-controls {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 25;
+}
+
+.tactical-ctrl-btn {
+  width: 32px;
+  height: 32px;
+  background: rgba(18, 20, 26, 0.92);
+  border: 1px solid #363d4c;
+  color: #ffffff;
+  font-family: var(--font-tactical-mono);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tactical-ctrl-btn:hover {
+  background: #272d3b;
+  border-color: #5a657c;
+}
+
+/* Tactical Isometric Canvas */
+.isometric-city-canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: radial-gradient(circle at 65% 55%, #15181f 0%, #0a0b0d 75%);
+  cursor: grab;
+}
+
+.isometric-city-canvas:active {
+  cursor: grabbing;
+}
+
+/* Tactical marker on the map */
+.tactical-map-marker {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 20;
+}
+
+.tactical-marker-box {
+  width: 14px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1.5px solid #ffffff;
+  display: grid;
+  place-items: center;
+  transition: transform 0.2s ease;
+}
+
+.tactical-marker-box i {
+  width: 4px;
+  height: 4px;
+  background: #ffffff;
+  display: block;
+}
+
+.tactical-map-marker:hover .tactical-marker-box,
+.tactical-map-marker.active .tactical-marker-box {
+  transform: scale(1.2);
+  box-shadow: 0 0 10px #ffffff;
+}
+
+.tactical-marker-label {
+  background: rgba(14, 16, 21, 0.85);
+  border: 1px solid #383f4f;
+  color: #e5e7eb;
+  font-family: var(--font-tactical-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.tactical-map-marker.active .tactical-marker-label {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   7. VELOX FLIGHT BOOKING SUITE (SCREENSHOT 2 IMPLEMENTATION)
+   ========================================================================== */
+
+.velox-container {
+  position: absolute;
+  inset: 60px 0 0 60px;
+  background: radial-gradient(circle at 80% 20%, #0c251f 0%, #050f0c 70%);
+  color: #e2e8f0;
+  overflow-y: auto;
+  z-index: 38;
+  padding: 24px 32px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Velox Top Navigation */
+.velox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.velox-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(14, 32, 26, 0.6);
+  padding: 4px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--velox-card-border);
+}
+
+.velox-nav-pill {
+  background: transparent;
+  border: none;
+  color: var(--velox-text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.velox-nav-pill:hover {
+  color: #ffffff;
+}
+
+.velox-nav-pill.active {
+  background: #ffffff;
+  color: #0b1e17;
+  font-weight: 600;
+}
+
+/* Velox User / Actions */
+.velox-user-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.velox-search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 34, 28, 0.8);
+  border: 1px solid var(--velox-card-border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: #c9e0d8;
+}
+
+.velox-search-box input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #ffffff;
+  font-size: 13px;
+  width: 140px;
+}
+
+.velox-kbd {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--velox-text-dim);
+}
+
+/* Velox Main Grid */
+.velox-dashboard-grid {
+  display: grid;
+  grid-template-columns: 310px 1fr 340px;
+  gap: 20px;
+  align-items: start;
+}
+
+/* Velox Glass Cards */
+.velox-card {
+  background: var(--velox-card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--velox-card-border);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+  position: relative;
+}
+
+/* Route Search Card */
+.velox-route-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.velox-route-endpoints {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.velox-endpoint h2 {
+  font-size: 32px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.velox-endpoint span {
+  font-size: 11px;
+  color: var(--velox-text-dim);
+}
+
+.velox-swap-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+}
+
+.velox-date-row {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 12px;
+}
+
+.velox-date-item span {
+  font-size: 10px;
+  color: var(--velox-text-dim);
+  display: block;
+}
+
+.velox-date-item strong {
+  font-size: 12px;
+  color: #ffffff;
+}
+
+.velox-search-btn {
+  background: #ffffff;
+  color: #0b1e17;
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 0;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease;
+  margin-top: 6px;
+}
+
+.velox-search-btn:hover {
+  background: #ecfdf5;
+  transform: translateY(-1px);
+}
+
+/* Upcoming Flight Card */
+.velox-upcoming-card {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.velox-airline-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.velox-flight-airports {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.velox-flight-airports strong {
+  font-size: 20px;
+  color: #ffffff;
+}
+
+.velox-flight-airports span {
+  font-size: 11px;
+  color: var(--velox-text-dim);
+  display: block;
+}
+
+.velox-flight-duration {
+  font-size: 10px;
+  color: var(--velox-emerald);
+  text-align: center;
+}
+
+/* Route Radar Arc Card */
+.velox-radar-card {
+  height: 230px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.velox-radar-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.velox-flight-badge-orange {
+  position: absolute;
+  top: 40px;
+  left: 80px;
+  background: rgba(249, 115, 22, 0.2);
+  border: 1px solid var(--velox-orange);
+  color: #ffffff;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.velox-flight-badge-green {
+  position: absolute;
+  top: 40px;
+  right: 80px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid var(--velox-emerald);
+  color: #ffffff;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+/* Hot Propositions Table */
+.velox-propositions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.velox-propositions-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--velox-text-dim);
+  padding-bottom: 12px;
+}
+
+.velox-propositions-table td {
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.velox-flight-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.velox-flight-row:hover td {
+  color: var(--velox-emerald-light);
+}
+
+/* Interactive Seat Selector (Right Column) */
+.velox-seat-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.velox-fuselage-graphic {
+  width: 100%;
+  height: 280px;
+  position: relative;
+  background: radial-gradient(ellipse at 50% 10%, #153a30 0%, #0c201a 70%);
+  border-radius: 120px 120px 20px 20px;
+  border: 1px solid rgba(46, 92, 80, 0.5);
+  box-shadow: inset 0 0 40px rgba(16, 185, 129, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 16px;
+}
+
+.velox-cabin-class-pill {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 3px 12px;
+  border-radius: 999px;
+  margin-bottom: 16px;
+}
+
+.velox-seat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) 14px repeat(3, 1fr);
+  gap: 6px;
+  width: 100%;
+  max-width: 250px;
+}
+
+.velox-seat-col-label {
+  font-size: 9px;
+  color: var(--velox-text-dim);
+  text-align: center;
+  font-weight: 600;
+}
+
+.velox-seat-item {
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 9px;
+  color: #a0aec0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.velox-seat-item:hover {
+  border-color: var(--velox-orange);
+  color: #ffffff;
+}
+
+.velox-seat-item.selected {
+  background: var(--velox-orange);
+  border-color: var(--velox-orange);
+  color: #ffffff;
+  font-weight: bold;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.5);
+}
+
+.velox-seat-item.occupied {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Velox Checkout Footer Button */
+.velox-checkout-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border-radius: 999px;
+  padding: 4px 6px 4px 18px;
+  color: #0c201a;
+  font-weight: 700;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.velox-checkout-btn {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.4);
+}
+
+/* Animations */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.15);
+  }
+}

@@ -1,0 +1,457 @@
+/* VIGIL's light, atmospheric workspace. The globe remains a live canvas. */
+:root {
+  --glass-border: rgba(255,255,255,.68);
+  --glass-cyan: #9b46db;
+}
+
+html, body, #root { background: #accaf5; }
+.glass-dashboard-shell {
+  width: 100%;
+  min-width: 0;
+  min-height: 100dvh;
+  height: 100dvh;
+  padding: clamp(12px, 4.4vh, 58px) clamp(12px, 5vw, 94px);
+  background:
+    radial-gradient(ellipse at 18% 62%, rgba(255,255,255,.96), transparent 41%),
+    radial-gradient(ellipse at 76% 18%, rgba(107,154,233,.64), transparent 48%),
+    radial-gradient(ellipse at 42% 110%, rgba(244,248,255,.94), transparent 42%),
+    linear-gradient(150deg,#b9d3f5 0%,#8db9ed 52%,#a6c8f4 100%);
+  color: #19182f;
+}
+.glass-dashboard-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .43;
+  background: radial-gradient(circle at 13% 27%, white 0 1px, transparent 2px), radial-gradient(circle at 74% 11%, white 0 1px, transparent 2px), radial-gradient(circle at 88% 57%, white 0 1px, transparent 2px);
+  background-size: 310px 260px, 410px 330px, 520px 410px;
+}
+.glass-topbar,
+.glass-workspace,
+.glass-footer { position: relative; }
+.glass-topbar {
+  height: 84px;
+  margin: 0;
+  padding: 0 clamp(16px,2.8vw,40px);
+  border-radius: 24px 24px 0 0;
+  background: rgba(247,249,255,.49);
+  border: 1px solid rgba(255,255,255,.68);
+  border-bottom: 0;
+  box-shadow: 0 16px 70px rgba(67,101,155,.14), inset 0 1px 0 #fff9;
+  backdrop-filter: blur(24px) saturate(1.35);
+  -webkit-backdrop-filter: blur(24px) saturate(1.35);
+  gap: 18px;
+}
+.glass-brand { color: #1d1b35; font-size: 20px; letter-spacing: -.055em; min-width: 160px; }
+.glass-brand img { width: 36px; height: 36px; filter: drop-shadow(0 5px 9px #b967d859); }
+.glass-brand span { display:flex; flex-direction:column; line-height:1; }
+.glass-brand small { margin-top:5px; color:#555b75; font-size:10px; font-weight:500; letter-spacing:0; }
+.glass-lenses-pill { background: rgba(255,255,255,.31); border-color:#ffffffa3; padding:4px; flex-shrink:1; min-width:0; }
+.glass-lens-btn { color:#5d627d; font-size:11px; padding:8px 10px; }
+.glass-lens-btn:hover { color:#221a38; background:#ffffff80; }
+.glass-lens-btn.active { background:linear-gradient(135deg,#eaa2ec,#bb69d8); color:#311b48; box-shadow:0 4px 12px #af6ac441; }
+.glass-search-trigger,
+.glass-action-pill,
+.glass-clock-badge,
+.glass-avatar-circle {
+  background: rgba(255,255,255,.35);
+  border:1px solid rgba(255,255,255,.75);
+  box-shadow:inset 0 1px 0 #fff8;
+  color:#302d4d;
+  backdrop-filter:blur(14px);
+}
+.glass-search-trigger { min-width:150px; max-width:210px; overflow:hidden; white-space:nowrap; padding:9px 12px; }
+.glass-search-trigger span { overflow:hidden; text-overflow:ellipsis; }
+.glass-search-trigger kbd { background:#ffffff70; color:#675b81; flex-shrink:0; }
+.glass-top-actions { gap:6px; }
+.glass-action-pill { padding:9px 11px; white-space:nowrap; }
+.glass-action-pill:hover { background:#fff9; border-color:#fff; color:#8e36bc; }
+.glass-action-pill.active { color:#923fc0; border-color:#d49ee9; background:#f3dafaab; }
+.glass-clock-badge { border-radius:20px; padding:9px 10px; font-size:10px; white-space:nowrap; }
+.glass-top-actions .live { color:#348c62; background:#e4f8ea9c; padding:9px 10px; border-radius:20px; border:1px solid #fff8; }
+.glass-top-actions .live i { background:#48ca4b; }
+.glass-avatar-circle { color:#642686; background:linear-gradient(135deg,#f0b8f1,#d1acff); box-shadow:0 4px 12px #ad71cf36; flex-shrink:0; }
+
+.glass-workspace,
+.glass-workspace.left-collapsed,
+.glass-workspace.right-collapsed,
+.glass-workspace.both-collapsed {
+  grid-template-columns: 64px minmax(0,1fr) minmax(290px,330px);
+  gap: 12px;
+  padding: 12px 20px 20px;
+  background:rgba(246,248,255,.48);
+  border:1px solid rgba(255,255,255,.68);
+  border-top:0;
+  border-radius:0 0 24px 24px;
+  box-shadow:0 30px 70px rgba(64,91,142,.18), inset 0 -1px 0 #fff8;
+  backdrop-filter:blur(22px);
+  -webkit-backdrop-filter:blur(22px);
+}
+.glass-workspace:has(.glass-left-panel) { grid-template-columns:minmax(245px,275px) minmax(0,1fr) minmax(290px,330px); }
+.glass-workspace.right-collapsed { grid-template-columns:64px minmax(0,1fr) 52px; }
+.glass-workspace.right-collapsed:has(.glass-left-panel) { grid-template-columns: minmax(245px,275px) minmax(0,1fr) 52px; }
+.glass-workspace.both-collapsed { grid-template-columns:64px minmax(0,1fr) 52px; }
+.glass-sidebar-pill,
+.glass-left-panel,
+.glass-right-panel {
+  background:rgba(255,255,255,.44);
+  border:1px solid rgba(255,255,255,.72);
+  box-shadow:0 14px 34px rgba(83,109,161,.12), inset 0 1px 0 #fff9;
+  backdrop-filter:blur(22px) saturate(1.35);
+  -webkit-backdrop-filter:blur(22px) saturate(1.35);
+}
+.glass-sidebar-pill { border-radius:32px !important; padding:10px 5px; align-self:flex-start!important; height:auto!important; margin-top:28px; }
+.glass-rail-group { display:flex; flex-direction:column; align-items:center; gap:7px; }
+.glass-rail-icon-btn { width:46px; height:46px; border:0; border-radius:18px; background:transparent; color:#5d6380; display:grid; place-items:center; cursor:pointer; }
+.glass-rail-icon-btn:hover { background:#fff9; color:#a444c8; }
+.glass-rail-icon-btn:first-child { color:#7137ad; background:#fff9; box-shadow:0 5px 15px #7164a01f; }
+.glass-left-panel { color:#282541; }
+.glass-panel-title { color:#2a2744; }
+.glass-select-btn,.glass-location-btn,.glass-layer-row { background:rgba(255,255,255,.34); border-color:#fff9; color:#3b3a5b; }
+.glass-select-btn:hover,.glass-location-btn:hover,.glass-layer-row:hover { background:#fff9; color:#762dad; }
+.glass-group-label,.glass-counter-badge { color:#77768e; }
+.glass-layer-name,.glass-layer-count-badge { color:#34334d; }
+.glass-map-zone { border-radius:24px!important; border-color:#ffffffc9!important; box-shadow:0 18px 45px #46597837, inset 0 0 30px #0b102533; }
+.glass-map-zone::after {
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:4;
+  background:linear-gradient(90deg,rgba(12,17,45,.77) 0%,rgba(13,19,46,.52) 31%,transparent 68%),linear-gradient(0deg,#0b173c70,transparent 24%);
+}
+.vigil-map-intro { position:absolute; z-index:12; left:clamp(22px,3.6vw,58px); top:clamp(115px,19vh,230px); width:min(330px,43%); color:#fff; pointer-events:none; text-shadow:0 3px 18px #11163373; }
+.vigil-kicker { font-size:10px; font-weight:700; letter-spacing:.16em; color:#eee0ff; display:flex; align-items:center; gap:9px; }
+.vigil-kicker i,.vigil-intro-status i { width:7px; height:7px; border-radius:50%; background:#74e468; box-shadow:0 0 11px #74e468; display:inline-block; }
+.vigil-map-intro h1 { font-size:clamp(40px,4.4vw,76px); line-height:1.02; letter-spacing:-.078em; font-weight:650; margin:20px 0 18px; }
+.vigil-map-intro h1 em { font-style:normal; color:#f4c7ff; }
+.vigil-map-intro p { max-width:285px; font-size:13px; line-height:1.6; color:#edf0ff; margin:0 0 24px; }
+.vigil-intro-status { display:inline-flex; align-items:center; gap:7px; padding:10px 13px; border:1px solid #ffffff65; border-radius:40px; background:#ffffff2c; backdrop-filter:blur(12px); font-size:10px; white-space:nowrap; }
+.vigil-intro-status b { opacity:.6; }
+.glass-map-toolbar { top:auto; bottom:60px; left:auto; right:16px; width:auto; }
+.glass-map-toolbar .glass-operating-badge { display:none; }
+.glass-operating-badge,.glass-map-tools-group,.glass-instability-card,.glass-alert-ticker { background:rgba(240,240,255,.2); border-color:#ffffff66; backdrop-filter:blur(22px) saturate(1.25); -webkit-backdrop-filter:blur(22px) saturate(1.25); box-shadow:0 10px 24px #090b2026,inset 0 1px 0 #fff5; }
+.glass-operating-badge span { color:#f4c7ff; }
+.glass-operating-badge small { color:#d9d9ea; }
+.glass-map-tools-group { max-width:none; flex-wrap:wrap; justify-content:flex-end; }
+.glass-map-tool-btn { color:#f5f1fc; }
+.glass-map-tool-btn:hover,.glass-map-tool-btn.active { color:#fff; background:#bc68d776; border-color:#dcabf3; }
+.glass-instability-card { top:auto; bottom:66px; left:16px; width:250px; color:#fff; }
+.glass-instability-item { grid-template-columns:26px minmax(0,1fr) 42px 12px; gap:4px; }
+.glass-instability-item > span:nth-child(2) { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.glass-instability-head strong,.glass-instability-item .score { color:#f7d6fc; }
+.glass-instability-item { color:#f2eff9; }
+.glass-instability-item .code,.glass-instability-head span { color:#e4dcec; }
+.glass-alert-ticker { left:16px; right:16px; bottom:14px; border-left:2px solid #db89e8; }
+.glass-alert-ticker-tag { color:#ffe0fa; }
+.glass-alert-ticker-marquee { color:#fff; }
+
+.glass-right-panel { width:100%; border-radius:24px; }
+.glass-tab-bar { border-color:#ffffff8a; }
+.glass-tab-btn { color:#676781; }
+.glass-tab-btn:hover,.glass-tab-btn.active { color:#8c2cad; background:#f4dffaad; border-color:#eac8f7; box-shadow:none; }
+.glass-panel-content { color:#34334d; }
+.glass-panel-content .section-head { border-color:#d9d8e3; color:#4f4565; }
+.glass-panel-content .section-head small { color:#77758e; }
+.glass-panel-content .signal,.glass-panel-content .ai-insight,.glass-panel-content .correlation,.glass-panel-content .market,.glass-panel-content .choke,.glass-panel-content .newsitem { background:rgba(255,255,255,.3); border:1px solid #fff9; border-radius:16px; padding:13px; margin-bottom:9px; box-shadow:0 6px 15px #7c82ad12; }
+.glass-panel-content .signal h3,.glass-panel-content .ai-insight h3,.glass-panel-content .correlation h3,.glass-panel-content .market strong,.glass-panel-content .choke strong,.glass-panel-content .newsitem h3 { color:#27253f; }
+.glass-panel-content .signal p,.glass-panel-content .ai-insight p,.glass-panel-content .correlation span,.glass-panel-content .market small,.glass-panel-content .choke small,.glass-panel-content .newsitem p { color:#686781; }
+.glass-panel-content button { cursor:pointer; }
+.glass-right-panel.collapsed { display:flex; align-items:center; padding:10px 4px; }
+.glass-footer { display:none; }
+
+.live-satellite-catalog { width:min(620px,calc(100vw - 24px)); max-height:min(760px,calc(100dvh - 24px)); display:flex; flex-direction:column; padding:22px; border:1px solid #fff9; border-radius:26px; background:rgba(239,244,255,.94); box-shadow:0 25px 80px #18244773; backdrop-filter:blur(24px); color:#28233f; }
+.live-satellite-catalog header { display:flex; justify-content:space-between; align-items:start; gap:20px; }
+.live-satellite-catalog header small { color:#8f3fbb; font-size:10px; letter-spacing:.14em; font-weight:700; }
+.live-satellite-catalog h2 { margin:5px 0; font-size:26px; letter-spacing:-.04em; }
+.live-satellite-catalog header p { color:#696681; font-size:12px; margin:0 0 18px; }
+.live-satellite-catalog header button { width:34px; height:34px; flex-shrink:0; border:1px solid #fff; border-radius:50%; background:#fff9; color:#2e2649; font-size:21px; cursor:pointer; }
+.live-satellite-catalog input { width:100%; padding:12px 15px; border-radius:15px; border:1px solid #fff; outline-color:#be7bd4; background:#ffffffb8; color:#27233d; }
+.live-satellite-list { min-height:0; overflow:auto; margin-top:12px; display:grid; align-content:start; gap:8px; }
+.live-satellite-list button { width:100%; display:flex; justify-content:space-between; align-items:center; gap:15px; padding:13px; border:1px solid #fff; border-radius:15px; background:#ffffffa0; color:#2c2845; text-align:left; cursor:pointer; }
+.live-satellite-list button:hover { background:#fff; border-color:#dda5ef; }
+.live-satellite-list button span:first-child { display:flex; flex-direction:column; min-width:0; }
+.live-satellite-list strong { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.live-satellite-list small,.live-satellite-list p { color:#77738d; font-size:11px; margin-top:3px; }
+.live-satellite-list button span:last-child { white-space:nowrap; font-size:12px; font-weight:700; }
+.live-satellite-list button b { color:#aa50cc; margin-left:6px; }
+
+[data-theme="dark"] .glass-dashboard-shell { background:radial-gradient(ellipse at 70% 15%,#243a67 0%,transparent 48%),linear-gradient(145deg,#0e1631,#182955 60%,#121d3c); }
+[data-theme="dark"] .glass-topbar,[data-theme="dark"] .glass-workspace { background:rgba(20,29,58,.72); border-color:#ffffff28; }
+[data-theme="dark"] .glass-sidebar-pill,[data-theme="dark"] .glass-left-panel,[data-theme="dark"] .glass-right-panel { background:rgba(27,38,72,.75); border-color:#ffffff2f; }
+[data-theme="dark"] .glass-brand,[data-theme="dark"] .glass-panel-title,[data-theme="dark"] .glass-layer-name,[data-theme="dark"] .glass-layer-count-badge { color:#f3edff; }
+[data-theme="dark"] .glass-brand small,[data-theme="dark"] .glass-lens-btn,[data-theme="dark"] .glass-tab-btn,[data-theme="dark"] .glass-group-label { color:#b5b6d2; }
+[data-theme="dark"] .glass-search-trigger,[data-theme="dark"] .glass-action-pill,[data-theme="dark"] .glass-clock-badge,[data-theme="dark"] .glass-rail-icon-btn,[data-theme="dark"] .glass-select-btn,[data-theme="dark"] .glass-location-btn { color:#f5eefa; background:#ffffff16; border-color:#ffffff2d; }
+[data-theme="dark"] .glass-panel-content .signal,[data-theme="dark"] .glass-panel-content .ai-insight,[data-theme="dark"] .glass-panel-content .correlation,[data-theme="dark"] .glass-panel-content .market,[data-theme="dark"] .glass-panel-content .choke,[data-theme="dark"] .glass-panel-content .newsitem { background:#ffffff12; border-color:#ffffff27; }
+[data-theme="dark"] .glass-panel-content .signal h3,[data-theme="dark"] .glass-panel-content .ai-insight h3,[data-theme="dark"] .glass-panel-content .correlation h3,[data-theme="dark"] .glass-panel-content .market strong,[data-theme="dark"] .glass-panel-content .choke strong,[data-theme="dark"] .glass-panel-content .newsitem h3 { color:#f6f2ff; }
+[data-theme="dark"] .glass-panel-content .signal p,[data-theme="dark"] .glass-panel-content .ai-insight p,[data-theme="dark"] .glass-panel-content .correlation span,[data-theme="dark"] .glass-panel-content .market small,[data-theme="dark"] .glass-panel-content .choke small,[data-theme="dark"] .glass-panel-content .newsitem p,[data-theme="dark"] .glass-panel-content .section-head { color:#babbd1; }
+
+@media (max-width:1350px) {
+  .glass-topbar { gap:10px; }
+  .glass-action-pill span:nth-child(2) { display:none; }
+  .glass-search-trigger { min-width:44px; max-width:44px; padding:10px 13px; }
+  .glass-search-trigger span,.glass-search-trigger kbd { display:none; }
+  .glass-workspace,.glass-workspace.left-collapsed { grid-template-columns:58px minmax(0,1fr) minmax(275px,310px); }
+}
+@media (max-width:1600px) {
+  .glass-lens-btn:nth-child(n+4) { display:none; }
+  .glass-search-trigger { min-width:44px; max-width:44px; padding:10px 13px; }
+  .glass-search-trigger span,.glass-search-trigger kbd { display:none; }
+  .glass-action-pill span:nth-child(2) { display:none; }
+}
+@media (max-width:1050px) {
+  .glass-dashboard-shell { padding:10px; }
+  .glass-workspace,.glass-workspace.left-collapsed { grid-template-columns:54px minmax(0,1fr) 52px; }
+  .glass-right-panel { width:52px; }
+  .glass-right-panel:not(.collapsed) { position:absolute; z-index:40; right:12px; top:12px; bottom:12px; width:min(340px,calc(100% - 90px)); }
+  .glass-map-toolbar { flex-wrap:wrap; gap:8px; }
+  .vigil-map-intro { width:45%; }
+}
+@media (max-width:720px) {
+  .glass-topbar { height:66px; padding:0 12px; }
+  .glass-brand { min-width:auto; font-size:17px; }
+  .glass-brand small,.glass-lenses-pill,.glass-top-actions .glass-clock-badge,.glass-top-actions .live { display:none; }
+  .glass-top-actions { margin-left:auto; }
+  .glass-top-actions .glass-action-pill:nth-child(n+3) { display:none; }
+  .glass-workspace,.glass-workspace.left-collapsed,.glass-workspace.right-collapsed,.glass-workspace.both-collapsed { grid-template-columns:46px minmax(0,1fr) 0; padding:8px; gap:7px; }
+  .glass-sidebar-pill { width:46px; }
+  .glass-rail-icon-btn { width:34px; height:40px; }
+  .glass-right-panel.collapsed { display:none; }
+  .glass-right-panel:not(.collapsed) { right:8px; top:8px; bottom:8px; width:min(320px,calc(100% - 58px)); }
+  .vigil-map-intro { left:15px; top:130px; width:70%; }
+  .vigil-map-intro h1 { font-size:40px; }
+  .vigil-map-intro p { font-size:11px; }
+  .glass-instability-card { display:none; }
+  .glass-operating-badge { display:none; }
+  .glass-map-tools-group { max-width:100%; margin-left:auto; flex-wrap:nowrap; gap:0; padding:3px; }
+  .glass-map-tool-btn { padding:5px; font-size:10px; white-space:nowrap; }
+  .cesium-quick-controls { left:8px!important; right:8px!important; top:8px!important; width:calc(100% - 16px); overflow-x:auto; overflow-y:hidden; justify-content:flex-start; scrollbar-width:none; }
+  .cesium-quick-controls::-webkit-scrollbar { display:none; }
+  .cesium-quick-controls > * { flex-shrink:0; }
+}
+
+/* Edge-to-edge command center. The panels retain their glass finish without
+   putting the entire dashboard inside a second rounded frame. */
+html, body, #root { background:#0b1220; }
+.glass-dashboard-shell { width:100%; height:100dvh; min-height:100dvh; padding:0; color:#f4f3fb; }
+.glass-dashboard-shell::before { opacity:.1; }
+[data-theme="dark"] .glass-dashboard-shell {
+  background:radial-gradient(ellipse at 62% -18%,#243153 0%,transparent 46%),linear-gradient(155deg,#0b1322 0%,#101a2e 53%,#0a1323 100%);
+}
+.glass-topbar { height:76px; min-height:76px; border-radius:0; border:0; border-bottom:1px solid #ffffff1d; box-shadow:0 9px 28px #02071438; }
+[data-theme="dark"] .glass-topbar { background:rgba(18,27,46,.86); }
+.glass-workspace,.glass-workspace.left-collapsed,.glass-workspace.right-collapsed,.glass-workspace.both-collapsed {
+  padding:10px 12px 12px; border:0; border-radius:0; box-shadow:none; background:transparent;
+}
+[data-theme="dark"] .glass-workspace { background:transparent; }
+[data-theme="dark"] .glass-sidebar-pill,[data-theme="dark"] .glass-left-panel,[data-theme="dark"] .glass-right-panel {
+  background:linear-gradient(145deg,rgba(32,44,68,.9),rgba(19,30,50,.86));
+  border-color:#ffffff24; box-shadow:0 12px 30px #02071446,inset 0 1px 0 #ffffff19;
+}
+[data-theme="dark"] .glass-lenses-pill,[data-theme="dark"] .glass-search-trigger,[data-theme="dark"] .glass-action-pill,[data-theme="dark"] .glass-clock-badge {
+  background:#ffffff0c; border-color:#ffffff26; box-shadow:inset 0 1px 0 #ffffff12;
+}
+[data-theme="dark"] .glass-lens-btn.active,[data-theme="dark"] .glass-tab-btn.active { background:linear-gradient(135deg,#ae71d0,#835cb6); color:#fff; border-color:#c197dd85; }
+[data-theme="dark"] .glass-lens-btn:hover,[data-theme="dark"] .glass-action-pill:hover,[data-theme="dark"] .glass-rail-icon-btn:hover { background:#ffffff1c; color:#fff; }
+[data-theme="dark"] .glass-top-actions .live { color:#86e2a9; background:#1b50343f; border-color:#6dd89a42; }
+[data-theme="dark"] .glass-layer-row { background:#ffffff0c; border-color:#ffffff20; color:#e7e4f2; }
+[data-theme="dark"] .glass-layer-row:hover { background:#ffffff19; }
+[data-theme="dark"] .glass-panel-content { color:#e9e8f2; }
+[data-theme="dark"] .glass-panel-content .section-head { border-color:#ffffff28; color:#d9d5e8; }
+[data-theme="dark"] .glass-tab-bar { border-color:#ffffff20; }
+.glass-map-zone { border-radius:18px!important; border-color:#ffffff28!important; box-shadow:0 14px 34px #02071455,inset 0 0 30px #0b102533; }
+.glass-operating-badge,.glass-map-tools-group,.glass-instability-card,.glass-alert-ticker,.glass-instability-toggle {
+  background:rgba(22,30,49,.76); border:1px solid #ffffff38; backdrop-filter:blur(22px) saturate(1.2); -webkit-backdrop-filter:blur(22px) saturate(1.2);
+  box-shadow:0 12px 30px #03081765,inset 0 1px 0 #ffffff21;
+}
+.glass-instability-card { width:276px; bottom:66px; max-height:min(250px,calc(100% - 130px)); overflow:auto; padding:12px; }
+.glass-instability-head { gap:7px; }
+.glass-instability-head strong { min-width:0; white-space:nowrap; font-size:9px; }
+.glass-instability-head span { margin-left:auto; font-size:8px; }
+.glass-instability-close { width:24px; height:24px; flex:none; display:grid; place-items:center; border:1px solid #ffffff2e; border-radius:8px; background:#ffffff13; color:#fff; font-size:17px; line-height:1; cursor:pointer; }
+.glass-instability-close:hover { background:#ce81df66; }
+.glass-instability-item { width:100%; background:transparent; border:0; border-top:1px solid #ffffff16; text-align:left; cursor:pointer; }
+.glass-instability-item:hover { background:#ffffff12; }
+.glass-instability-toggle { position:absolute; z-index:20; bottom:66px; left:16px; display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:999px; color:#f4e9ff; font-size:11px; font-weight:700; cursor:pointer; }
+.glass-instability-toggle:hover { background:rgba(49,42,77,.9); border-color:#d8a8ec9c; }
+.glass-instability-toggle small { color:#d3b1e4; font-size:10px; }
+[data-theme="dark"] .glass-right-panel .feed-explorer h3 { color:#e5c7f3; }
+[data-theme="dark"] .glass-right-panel .feed-explorer p,[data-theme="dark"] .glass-right-panel .feed-explorer small { color:#adb8ce; }
+[data-theme="dark"] .glass-right-panel .flight-counts div {
+  background:#ffffff0d; border:1px solid #ffffff25; border-radius:11px;
+}
+[data-theme="dark"] .glass-right-panel .flight-counts strong { color:#e9c8f5; }
+[data-theme="dark"] .glass-right-panel .feed-explorer input,[data-theme="dark"] .glass-right-panel .feed-explorer select {
+  background:#ffffff0e; border:1px solid #ffffff35; border-radius:10px; color:#f5f1fb; outline-color:#c794e5;
+}
+[data-theme="dark"] .glass-right-panel .feed-explorer select option { background:#1b2942; color:#fff; }
+[data-theme="dark"] .glass-right-panel .feed-explorer input::placeholder { color:#8c9ab4; }
+[data-theme="dark"] .glass-right-panel .feed-explorer button { background:#ffffff12; border:1px solid #ffffff32; border-radius:10px; color:#f4ddfb; }
+[data-theme="dark"] .glass-right-panel .feed-explorer button[type="submit"] { background:linear-gradient(135deg,#8d5fb6,#6e57aa); border-color:#b58bd0; color:#fff; font-weight:700; }
+[data-theme="dark"] .glass-right-panel .feed-explorer button:hover { border-color:#d8a8ec; background:#ffffff20; }
+[data-theme="dark"] .glass-right-panel .feed-explorer button[type="submit"]:hover { background:linear-gradient(135deg,#a573c9,#8068bd); }
+[data-theme="dark"] .glass-right-panel .feed-explorer a { color:#d9b9ec; }
+@media (max-width:720px) {
+  .glass-topbar { height:66px; min-height:66px; }
+  .glass-workspace,.glass-workspace.left-collapsed,.glass-workspace.right-collapsed,.glass-workspace.both-collapsed { padding:7px; }
+  .glass-instability-card { display:block; width:min(276px,calc(100% - 22px)); left:10px; }
+  .glass-instability-toggle { left:10px; }
+  .glass-map-zone { border-radius:14px!important; }
+}
+
+/* The Earth is the canvas; only controls and feeds sit in glass surfaces. */
+:root { --glass-cyan:#d9ae68; --glass-border:rgba(226,185,109,.34); }
+.glass-dashboard-shell::before { display:none; }
+.glass-topbar {
+  position:absolute; z-index:50; top:12px; left:14px; right:14px; width:auto;
+  height:64px; min-height:64px; margin:0; padding:0 24px; border:1px solid #dbb87957;
+  border-radius:18px; box-shadow:0 16px 48px #0008,inset 0 1px 0 #fff2;
+}
+
+[data-theme="dark"] .glass-topbar { background:rgba(10,12,15,.78); }
+.glass-workspace,.glass-workspace.left-collapsed,.glass-workspace.right-collapsed,.glass-workspace.both-collapsed {
+  display:block; position:absolute; inset:0; width:100%; height:100%; padding:0; overflow:hidden;
+}
+.glass-map-zone {
+  position:absolute!important; inset:0; width:100%; height:100%!important; min-width:100%;
+  border:0!important; border-radius:0!important; box-shadow:none!important;
+}
+.glass-map-zone::after { background:linear-gradient(0deg,rgba(4,5,7,.46),transparent 26%),rgba(2,3,5,.14); }
+.glass-sidebar-pill,.glass-left-panel {
+  position:absolute; z-index:39; top:90px; left:14px; width:62px; margin:0!important;
+  align-self:auto!important; max-height:calc(100% - 105px);
+}
+.glass-left-panel { width:282px; height:calc(100% - 105px); }
+.glass-right-panel,.glass-right-panel.collapsed,.glass-right-panel:not(.collapsed) {
+  position:absolute; z-index:40; top:90px; right:14px; bottom:14px; left:auto;
+  width:344px; height:auto; border-radius:18px;
+}
+.glass-right-panel.collapsed { width:52px; }
+.glass-workspace:not(.right-collapsed):not(.both-collapsed) .glass-map-toolbar,
+.glass-workspace:not(.right-collapsed):not(.both-collapsed) .glass-alert-ticker { right:370px; }
+.glass-workspace.right-collapsed .glass-map-toolbar,.glass-workspace.both-collapsed .glass-map-toolbar,
+.glass-workspace.right-collapsed .glass-alert-ticker,.glass-workspace.both-collapsed .glass-alert-ticker { right:80px; }
+.glass-map-toolbar { bottom:70px; }
+.glass-alert-ticker { left:94px; bottom:16px; }
+.glass-instability-card,.glass-instability-toggle { left:94px; bottom:70px; }
+.glass-workspace:has(.glass-left-panel) .glass-instability-card,
+.glass-workspace:has(.glass-left-panel) .glass-instability-toggle,
+.glass-workspace:has(.glass-left-panel) .glass-alert-ticker { left:306px; }
+.glass-workspace:not(.right-collapsed):not(.both-collapsed) .cesium-quick-controls { right:374px!important; }
+.glass-workspace.right-collapsed .cesium-quick-controls,.glass-workspace.both-collapsed .cesium-quick-controls { right:84px!important; }
+.cesium-quick-controls { top:92px!important; max-width:calc(100% - 480px); }
+.cesium-quick-controls > select,.cesium-quick-controls > button { background:rgba(9,11,15,.8)!important; border-color:#d9ae6861!important; box-shadow:0 8px 24px #0007,inset 0 1px 0 #fff2; }
+.cesium-quick-controls > button:last-child { background:linear-gradient(135deg,#c49a57,#886431)!important; color:#15100a!important; box-shadow:0 8px 24px #0008!important; }
+.cesium-optics-menu { top:138px!important; right:min(44vw,560px)!important; background:rgba(11,13,18,.94)!important; border-color:#d9ae6861!important; }
+[data-theme="dark"] .glass-sidebar-pill,[data-theme="dark"] .glass-left-panel,[data-theme="dark"] .glass-right-panel {
+  background:rgba(10,12,16,.78); border-color:#d9ae6852; box-shadow:0 20px 48px #0009,inset 0 1px 0 #fff2;
+}
+[data-theme="dark"] .glass-lenses-pill,[data-theme="dark"] .glass-search-trigger,[data-theme="dark"] .glass-action-pill,[data-theme="dark"] .glass-clock-badge {
+  background:#ffffff0c; border-color:#d9ae6845;
+}
+[data-theme="dark"] .glass-lens-btn.active,[data-theme="dark"] .glass-tab-btn.active,[data-theme="dark"] .glass-map-tool-btn.active {
+  background:linear-gradient(135deg,#d3ac6b,#98703d); color:#17110a; border-color:#e8c58a; box-shadow:0 4px 15px #0007;
+}
+[data-theme="dark"] .glass-avatar-circle { color:#211609; background:linear-gradient(135deg,#edd3a0,#ba8d4a); box-shadow:0 4px 14px #0008; }
+[data-theme="dark"] .glass-action-pill.active { color:#f6dfb8; background:#d9ae6826; border-color:#d9ae6880; }
+[data-theme="dark"] .glass-tab-btn:hover,[data-theme="dark"] .glass-map-tool-btn:hover { background:#d9ae6833; color:#fbe8c2; border-color:#d9ae6866; }
+[data-theme="dark"] .glass-rail-icon-btn:first-child { color:#e5bf7c; background:#d9ae6825; }
+[data-theme="dark"] .glass-top-actions .live { color:#e8cc92; background:#d9ae681a; border-color:#d9ae6854; }
+[data-theme="dark"] .glass-instability-head strong,[data-theme="dark"] .glass-instability-item .score,[data-theme="dark"] .glass-instability-toggle small,[data-theme="dark"] .glass-alert-ticker-tag { color:#e5be7c; }
+[data-theme="dark"] .glass-instability-card,[data-theme="dark"] .glass-instability-toggle,[data-theme="dark"] .glass-map-tools-group,[data-theme="dark"] .glass-alert-ticker { background:rgba(9,11,15,.82); border-color:#d9ae6852; }
+[data-theme="dark"] .glass-alert-ticker { border-left:2px solid #cba264; }
+[data-theme="dark"] .glass-right-panel .feed-explorer h3,[data-theme="dark"] .glass-right-panel .flight-counts strong,[data-theme="dark"] .glass-right-panel .feed-explorer a { color:#e1bd7c; }
+[data-theme="dark"] .glass-right-panel .feed-explorer button[type="submit"] { background:linear-gradient(135deg,#c49a57,#886431); border-color:#e0bd80; color:#15100a; }
+[data-theme="dark"] .glass-right-panel .feed-explorer button[type="submit"]:hover { background:linear-gradient(135deg,#dfb874,#a57b44); }
+@media (max-width:1100px) {
+  .glass-right-panel:not(.collapsed) { width:min(330px,calc(100% - 94px)); }
+  .glass-workspace:not(.right-collapsed):not(.both-collapsed) .glass-map-toolbar,
+  .glass-workspace:not(.right-collapsed):not(.both-collapsed) .glass-alert-ticker { right:356px; }
+  .glass-workspace:not(.right-collapsed):not(.both-collapsed) .cesium-quick-controls { right:360px!important; }
+}
+@media (max-width:850px) {
+  .glass-right-panel.collapsed { display:none; }
+  .glass-right-panel:not(.collapsed) { top:84px; right:10px; bottom:10px; width:min(330px,calc(100% - 82px)); }
+  .glass-workspace:not(.right-collapsed):not(.both-collapsed) .glass-map-toolbar,
+  .glass-workspace:not(.right-collapsed):not(.both-collapsed) .glass-alert-ticker { right:12px; }
+  .glass-workspace:not(.right-collapsed):not(.both-collapsed) .cesium-quick-controls { right:12px!important; }
+  .cesium-quick-controls { left:82px!important; right:10px!important; top:88px!important; width:auto; max-width:none; overflow-x:auto; scrollbar-width:none; }
+  .cesium-optics-menu { right:10px!important; top:134px!important; }
+  .glass-map-toolbar { bottom:70px; right:12px!important; }
+  .glass-alert-ticker { left:12px; right:12px!important; }
+  .glass-instability-card,.glass-instability-toggle { left:12px; bottom:120px; }
+}
+@media (max-width:720px) {
+  .glass-topbar { top:8px; left:8px; right:8px; height:58px; min-height:58px; padding:0 12px; }
+  .glass-sidebar-pill,.glass-left-panel { top:78px; left:8px; }
+  .glass-left-panel { width:min(280px,calc(100% - 16px)); height:calc(100% - 88px); }
+  .glass-right-panel:not(.collapsed) { top:78px; right:8px; bottom:8px; }
+  .glass-map-toolbar { bottom:60px; }
+  .glass-instability-card,.glass-instability-toggle { bottom:116px; }
+}
+
+/* Visible layer deck and charcoal glass controls. */
+.glass-layer-shortcuts { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:8px 0; flex-shrink:0; }
+.glass-layer-shortcuts button { display:flex; align-items:center; gap:6px; min-height:32px; padding:7px; border:1px solid #ffffff29; border-radius:10px; background:#ffffff0e; color:#e9ebdf; font-size:10px; cursor:pointer; }
+.glass-layer-shortcuts button:hover { background:#ffffff23; border-color:#d6e99488; }
+.layer-data-note { flex-shrink:0; margin:8px 0 0; color:#a6ada7; font-size:9px; line-height:1.5; }
+.glass-layer-row { min-height:30px; padding:5px 7px; margin-bottom:2px; font-size:10px; }
+.glass-left-panel .glass-group-label { margin:8px 2px 5px; }
+.glass-left-panel .glass-panel-title { white-space:nowrap; font-size:10px; gap:5px; }
+.glass-left-panel .glass-counter-badge { white-space:nowrap; }
+.glass-left-panel .glass-layer-shortcuts button { min-height:28px; padding:5px; }
+.glass-layer-label-text { white-space:normal; }
+.glass-layer-name { min-width:0; }
+.glass-live-feed-pill { font-size:8px; }
+.glass-tab-bar { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; padding:10px; overflow:visible; }
+.glass-tab-btn { display:flex; align-items:center; justify-content:center; gap:5px; min-width:0; padding:7px 4px; white-space:normal; font-size:10px; }
+.glass-tab-btn svg { flex-shrink:0; }
+[data-theme="dark"] .glass-topbar,[data-theme="dark"] .glass-left-panel,[data-theme="dark"] .glass-right-panel,[data-theme="dark"] .glass-sidebar-pill {
+  background:linear-gradient(145deg,rgba(47,49,43,.76),rgba(19,21,22,.86)); border-color:#ffffff38;
+  backdrop-filter:blur(28px) saturate(1.15); -webkit-backdrop-filter:blur(28px) saturate(1.15);
+  box-shadow:inset 0 1px 0 #ffffff30,0 16px 40px #0007;
+}
+[data-theme="dark"] .glass-lenses-pill,[data-theme="dark"] .glass-action-pill,[data-theme="dark"] .glass-search-trigger { background:#ffffff10; border-color:#ffffff2e; }
+[data-theme="dark"] .glass-lens-btn.active,[data-theme="dark"] .glass-tab-btn.active,[data-theme="dark"] .glass-map-tool-btn.active { background:linear-gradient(145deg,#dfedaf50,#a6b58824); color:#edfac3; border-color:#e4f5a66e; box-shadow:inset 0 1px 0 #fff3; }
+[data-theme="dark"] .glass-layer-row { background:#ffffff08; border:1px solid #ffffff0e; }
+[data-theme="dark"] .glass-layer-row:hover { background:#ffffff18; border-color:#ffffff35; }
+.glass-toggle.on { background:#35c9e7; border-color:#7ce3f3; box-shadow:0 0 11px #35c9e743; }
+.glass-layer-dot { flex-shrink:0; }
+.glass-rail-icon-btn:has(.rail-caption) { display:flex; flex-direction:column; gap:3px; height:48px; }
+.rail-caption { font-size:8px; line-height:1; }
+[data-theme="dark"] .glass-panel-title { color:#edeedc; }
+.glass-panel-title svg { color:#bde5d6!important; }
+.glass-layer-count-badge { margin-left:auto; }
+@media (min-width:1200px) { .glass-lens-btn:nth-child(n+4) { display:block; } }
+.glass-workspace .cesium-quick-controls { left:94px!important; width:auto!important; max-width:none; flex-wrap:wrap; justify-content:flex-end; overflow:visible; }
+.glass-workspace:has(.glass-left-panel) .cesium-quick-controls { left:310px!important; }
+.cesium-quick-controls > select,.cesium-quick-controls > button { min-height:32px; background:rgba(35,38,37,.8)!important; border-color:#ffffff42!important; }
+.cesium-quick-controls > button:last-child { background:linear-gradient(135deg,#d6e6a1,#a3b46f)!important; }
+.glass-map-tools-group { flex-wrap:wrap; }
+@media (max-width:1100px) and (min-width:851px) {
+  .glass-workspace:has(.glass-left-panel):not(.right-collapsed):not(.both-collapsed) .glass-map-toolbar { bottom:112px; }
+}
+@media (max-width:850px) {
+  .glass-workspace .cesium-quick-controls { left:82px!important; right:10px!important; flex-wrap:wrap; gap:5px; }
+  .glass-workspace:has(.glass-left-panel) .cesium-quick-controls { left:82px!important; }
+  .cesium-quick-controls > select { max-width:100%; }
+  .glass-workspace:has(.glass-left-panel) .glass-alert-ticker { left:12px; }
+  .glass-workspace:has(.glass-left-panel) .glass-instability-card,.glass-workspace:has(.glass-left-panel) .glass-instability-toggle { left:12px; }
+}
+@media (max-width:720px) {
+  .glass-topbar { height:104px; min-height:104px; align-items:flex-start; padding-top:10px; gap:7px; }
+  .glass-brand { padding-top:5px; }
+  .glass-top-actions { gap:4px; }
+  .glass-top-actions .glass-action-pill:nth-child(n+3) { display:flex; }
+  .glass-action-pill { padding:8px; font-size:9px; }
+  .glass-avatar-circle { display:none; }
+  .glass-search-trigger { min-width:30px; max-width:30px; padding:8px; }
+  .glass-lenses-pill { display:flex; position:absolute; top:60px; left:10px; right:10px; justify-content:space-between; }
+  .glass-lens-btn,.glass-lens-btn:nth-child(n+4) { display:block; padding:5px 6px; font-size:9px; }
+  .glass-sidebar-pill,.glass-left-panel { top:124px; }
+  .glass-left-panel { height:calc(100% - 134px); }
+  .glass-right-panel:not(.collapsed) { top:124px; }
+  .glass-workspace .cesium-quick-controls { top:126px!important; }
+  .cesium-optics-menu { top:245px!important; }
+}

@@ -1,20 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Globe, { KIND_COLOR, type GeoMarker } from "./Globe";
-import { militaryBases } from "./geodata";
 import NewsPanel from "./NewsPanel";
 import { type NewsArticle } from "./newsdata";
 import { fetchLiveNews, formatTimeAgo } from "./services/news";
-import SatelliteViewer from "./SatelliteViewer";
 import CameraViewer from "./CameraViewer";
 import CameraPanel from "./CameraPanel";
 import FlightPanel, { AircraftDossier } from "./FlightPanel";
 import { hasPosition, isAircraftPosition, nearbyAircraft } from "./services/airplanes";
 import { publicCameras } from "./services/cameras";
-import vigilLogo from "./Vigil-Logo.png";
-import { AlertTriangle, BarChart3, Bluetooth, CloudSun, Database, Eye, Globe2, Layers, Navigation, PencilLine, Radio, Radar, Search, SlidersHorizontal, TowerControl, Menu, X, Compass, Tv, type LucideIcon } from "lucide-react";
-import { SATELLITE_SOURCES, onSatelliteQuotaExceeded, type SatelliteImagerySource } from "./services/satellite-imagery";
-import { fetchCellTowers, type CellTower } from "./services/cell-towers";
-import StreetViewModal from "./StreetViewModal";
+import { useRestoredLayers } from "./services/restored-layers";
+import vigilLogo from "./Vigil-Logo-optimized.webp";
+import { AlertTriangle, BarChart3, Bluetooth, CloudSun, Database, Eye, Layers, PencilLine, Radio, Radar, Search, SlidersHorizontal, TowerControl, Menu, X, Compass, Tv, Ship, Plane, Truck, Package, Settings, MapPin, Zap, Sparkles, Crosshair, Globe as GlobeIcon, type LucideIcon } from "lucide-react";
+import PowerUpModal from "./components/PowerUpModal";
+import CesiumGlobe from "./globe/CesiumGlobe";
 import {
   fetchEarthquakes,
   fetchConflicts,
@@ -22,7 +20,6 @@ import {
   fetchNews as fetchGlobalNews,
   fetchFlights,
   POLL_INTERVALS,
-  type GlobalConflictZone,
   type GlobalCyberThreat,
   type GlobalNewsItem,
   type GlobalCamera,
@@ -33,9 +30,17 @@ import {
 } from "./services/global-feeds";
 
 type Layer = { label: string; count: string; active: boolean; kind: GeoMarker["kind"]; group: string };
+
 const rightPanelOptions: [string, LucideIcon][] = [
-  ["Signals", Radar], ["Live Now", Radio], ["AI Brief", BarChart3], ["News", AlertTriangle], ["Markets", PencilLine],
-  ["Aviation", SlidersHorizontal], ["Cameras", Search], ["Weather", CloudSun], ["Chokepoints", Bluetooth],
+  ["Signals", Radar],
+  ["Live Now", Radio],
+  ["Feed Brief", Sparkles],
+  ["News", Tv],
+  ["Cameras", Eye],
+  ["Markets", BarChart3],
+  ["Aviation", Plane],
+  ["Chokepoints", Ship],
+  ["Weather", CloudSun],
 ];
 
 type WeatherSnapshot = { temperature: number; apparent: number; wind: number; weatherCode: number; timezone: string; place: string };
@@ -208,11 +213,11 @@ const conflictPoints: EventMarker[] = [
   },
 ];
 const chokePoints: GeoMarker[] = [
-  { lon: 43.3, lat: 12.6, kind: "vessel", label: "Bab el-Mandeb", detail: "21 AIS vessels · risk 82" },
-  { lon: 56.3, lat: 26.6, kind: "vessel", label: "Strait of Hormuz", detail: "39 AIS vessels · risk 64" },
-  { lon: 32.3, lat: 30.5, kind: "vessel", label: "Suez Canal", detail: "46 AIS vessels · risk 58" },
-  { lon: -79.7, lat: 9.1, kind: "vessel", label: "Panama Canal", detail: "31 AIS vessels · risk 41" },
-  { lon: 100.4, lat: 2.5, kind: "vessel", label: "Strait of Malacca", detail: "118 AIS vessels · risk 24" },
+  { lon: 43.3, lat: 12.6, kind: "vessel", label: "Bab el-Mandeb", detail: "Geographic reference · AIS feed not connected" },
+  { lon: 56.3, lat: 26.6, kind: "vessel", label: "Strait of Hormuz", detail: "Geographic reference · AIS feed not connected" },
+  { lon: 32.3, lat: 30.5, kind: "vessel", label: "Suez Canal", detail: "Geographic reference · AIS feed not connected" },
+  { lon: -79.7, lat: 9.1, kind: "vessel", label: "Panama Canal", detail: "Geographic reference · AIS feed not connected" },
+  { lon: 100.4, lat: 2.5, kind: "vessel", label: "Strait of Malacca", detail: "Geographic reference · AIS feed not connected" },
 ];
 const infraPoints: GeoMarker[] = [
   { lon: -77.5, lat: 39.0, kind: "infra", label: "Ashburn DC cluster", detail: "AI datacenter corridor" },
@@ -296,10 +301,6 @@ const layerMarkerSamples: Record<string, GeoMarker[]> = {
     { lon: -0.12, lat: 51.5, kind: "infra", label: "London public camera", detail: "Public camera feed sample" },
     { lon: 139.7, lat: 35.68, kind: "infra", label: "Tokyo public camera", detail: "Public camera feed sample" },
   ],
-  "Cell towers · OpenCellID": [
-    { lon: 77.59, lat: 12.97, kind: "infra", label: "Bengaluru cell tower", detail: "OpenCellID coverage sample" },
-    { lon: 72.88, lat: 19.07, kind: "infra", label: "Mumbai cell tower", detail: "OpenCellID coverage sample" },
-  ],
 };
 const fallbackFlightMarkers: GeoMarker[] = [
   { lon: 77.6, lat: 13.0, kind: "flight", label: "6E 402", detail: "Commercial aircraft · sample position", heading: 72 },
@@ -309,78 +310,24 @@ const fallbackFlightMarkers: GeoMarker[] = [
   { lon: 121.47, lat: 31.23, kind: "flight", label: "MIL-02", detail: "Military aircraft · sample position", heading: 315 },
 ];
 
-const LAYER_BASELINES: Record<string, string> = {
-  "Conflict events": "47",
-  "Intelligence hotspots": "18",
-  "Protest clusters": "23",
-  "Sanctions pressure": "38",
-  "Military bases": "52",
-  "Nuclear facilities": "92",
-  "Spaceports": "12",
-  "Satellites · TLE": "1,334",
-  "Critical minerals": "64",
-  "Submarine cables": "421",
-  "AI datacenters": "96",
-  "Pipelines": "88",
-  "Internet outages": "14",
-  "Economic centers": "31",
-  "Military flights": "329",
-  "Commercial flights": "12,114",
-  "GPS jamming zones": "12",
-  "Vessels · AIS": "1,204",
-  "Dark ships": "18",
-  "Waterways": "19",
-  "Trade routes": "19",
-  "Earthquakes · USGS": "31",
-  "Wildfires · EONET": "184",
-  "Weather alerts": "220",
-  "Canada alerts": "6",
-  "Camera feeds": "38,421",
-  "Cell towers · OpenCellID": "38",
-};
-
 const initialLayers: Layer[] = [
-  { label: "Conflict events", count: LAYER_BASELINES["Conflict events"], active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
-  { label: "Intelligence hotspots", count: LAYER_BASELINES["Intelligence hotspots"], active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
-  { label: "Protest clusters", count: LAYER_BASELINES["Protest clusters"], active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
-  { label: "Sanctions pressure", count: LAYER_BASELINES["Sanctions pressure"], active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
-  { label: "Military bases", count: LAYER_BASELINES["Military bases"], active: true, kind: "base", group: "STRATEGIC ASSETS" },
-  { label: "Nuclear facilities", count: LAYER_BASELINES["Nuclear facilities"], active: true, kind: "hazard", group: "STRATEGIC ASSETS" },
-  { label: "Spaceports", count: LAYER_BASELINES["Spaceports"], active: false, kind: "base", group: "STRATEGIC ASSETS" },
-  { label: "Satellites · TLE", count: LAYER_BASELINES["Satellites · TLE"], active: true, kind: "infra", group: "STRATEGIC ASSETS" },
-  { label: "Critical minerals", count: LAYER_BASELINES["Critical minerals"], active: false, kind: "infra", group: "STRATEGIC ASSETS" },
-  { label: "Submarine cables", count: LAYER_BASELINES["Submarine cables"], active: true, kind: "cable", group: "STRATEGIC ASSETS" },
-  { label: "AI datacenters", count: LAYER_BASELINES["AI datacenters"], active: false, kind: "infra", group: "STRATEGIC ASSETS" },
-  { label: "Pipelines", count: LAYER_BASELINES["Pipelines"], active: false, kind: "infra", group: "INFRASTRUCTURE" },
-  { label: "Internet outages", count: LAYER_BASELINES["Internet outages"], active: true, kind: "infra", group: "INFRASTRUCTURE" },
-  { label: "Economic centers", count: LAYER_BASELINES["Economic centers"], active: true, kind: "infra", group: "INFRASTRUCTURE" },
-  { label: "Military flights", count: LAYER_BASELINES["Military flights"], active: true, kind: "flight", group: "AVIATION" },
-  { label: "Commercial flights", count: LAYER_BASELINES["Commercial flights"], active: true, kind: "flight", group: "AVIATION" },
-  { label: "GPS jamming zones", count: LAYER_BASELINES["GPS jamming zones"], active: false, kind: "flight", group: "AVIATION" },
-  { label: "Vessels · AIS", count: LAYER_BASELINES["Vessels · AIS"], active: true, kind: "vessel", group: "MARITIME" },
-  { label: "Dark ships", count: LAYER_BASELINES["Dark ships"], active: false, kind: "vessel", group: "MARITIME" },
-  { label: "Waterways", count: LAYER_BASELINES["Waterways"], active: true, kind: "vessel", group: "MARITIME" },
-  { label: "Trade routes", count: LAYER_BASELINES["Trade routes"], active: false, kind: "vessel", group: "MARITIME" },
-  { label: "Earthquakes · USGS", count: LAYER_BASELINES["Earthquakes · USGS"], active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
-  { label: "Wildfires · EONET", count: LAYER_BASELINES["Wildfires · EONET"], active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
-  { label: "Weather alerts", count: LAYER_BASELINES["Weather alerts"], active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
-  { label: "Canada alerts", count: LAYER_BASELINES["Canada alerts"], active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
-  { label: "Camera feeds", count: LAYER_BASELINES["Camera feeds"], active: true, kind: "infra", group: "INFRASTRUCTURE" },
-  { label: "Cell towers · OpenCellID", count: LAYER_BASELINES["Cell towers · OpenCellID"], active: false, kind: "infra", group: "INFRASTRUCTURE" },
+  { label: "Conflict events", count: "—", active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
+  { label: "Global incidents", count: "—", active: true, kind: "hazard", group: "CONFLICT & SECURITY" },
+  { label: "Satellites · TLE", count: "—", active: true, kind: "infra", group: "STRATEGIC ASSETS" },
+  { label: "Military flights", count: "—", active: true, kind: "flight", group: "AVIATION" },
+  { label: "Commercial flights", count: "—", active: true, kind: "flight", group: "AVIATION" },
+  { label: "Waterways", count: "—", active: true, kind: "vessel", group: "MARITIME" },
+  { label: "Vessels · AIS", count: "—", active: true, kind: "vessel", group: "MARITIME" },
+  { label: "Naval vessels", count: "—", active: true, kind: "vessel", group: "MARITIME" },
+  { label: "Submarine cables", count: "—", active: false, kind: "cable", group: "INFRASTRUCTURE" },
+  { label: "Day / night", count: "3D", active: false, kind: "infra", group: "CLIMATE & HAZARDS" },
+  { label: "Earthquakes · USGS", count: "—", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
+  { label: "Wildfires · EONET", count: "—", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
+  { label: "Weather alerts", count: "—", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
+  { label: "Camera feeds", count: "—", active: true, kind: "infra", group: "INFRASTRUCTURE" },
 ];
 const layerGroups = ["CONFLICT & SECURITY", "STRATEGIC ASSETS", "INFRASTRUCTURE", "AVIATION", "MARITIME", "CLIMATE & HAZARDS"];
 
-const signals = [
-  ["Red Sea transit risk rises after two verified incidents", "REUTERS + 4 ORIGINS", "03m", "critical"],
-  ["AIS density falls below weekly range in Bab el-Mandeb", "AISSTREAM", "08m", "warning"],
-  ["Magnitude 5.7 event detected east of Honshu", "USGS", "12m", "warning"],
-  ["BGP anomaly observed across two regional networks", "RIPE ATLAS", "19m", "neutral"],
-];
-const markets = [
-  ["S&P 500", "EQ", "5,428.61", "+0.42%", "up"], ["BTC / USD", "CRYPTO", "67,382", "−1.20%", "down"],
-  ["BRENT", "ENERGY", "82.31", "+1.18%", "up"], ["GOLD", "METAL", "2,338.4", "+0.35%", "up"], ["EUR / USD", "FX", "1.0842", "−0.08%", "down"],
-];
-const chokepoints = [["Bab el-Mandeb", "21", 82], ["Strait of Hormuz", "39", 64], ["Suez Canal", "46", 58], ["Panama Canal", "31", 41], ["Strait of Malacca", "118", 24]];
 const countries = [["IL", "Israel", 81, "▲"], ["YE", "Yemen", 78, "▲"], ["UA", "Ukraine", 75, "─"], ["TW", "Taiwan", 63, "▲"], ["VE", "Venezuela", 54, "▼"]];
 const openSources = [
   ["Global Proxy", "OSINT proxy — earthquakes, conflicts, cyber threats, flights, news"],
@@ -415,32 +362,28 @@ function weatherLabel(code: number) {
 }
 
 export default function App() {
-  const [launched, setLaunched] = useState(false);
+  const [launched, setLaunched] = useState(true);
+  const [showPowerUpModal, setShowPowerUpModal] = useState(false);
+  const [activeNav, setActiveNav] = useState<"BRIEF" | "UNIT MAP" | "SETUP" | "VELOX AERO">("UNIT MAP");
+  const [filterMode, setFilterMode] = useState<"City" | "District" | "Street">("City");
+  const [showLayersPanel, setShowLayersPanel] = useState(() => window.innerWidth > 850);
   const [layers, setLayers] = useState(initialLayers);
-  const [tab, setTab] = useState("Signals");
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const restored = useRestoredLayers();
+  const [tab, setTab] = useState("Cameras");
+  const [rightPanelOpen, setRightPanelOpen] = useState(() => window.innerWidth > 1050);
   const [lens, setLens] = useState("World");
-  const [dossier, setDossier] = useState<EventMarker | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<{ marker: GeoMarker; satellite?: GlobalSatellite } | null>(null);
   const [command, setCommand] = useState(false);
   const [clock, setClock] = useState(new Date());
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [flat, setFlat] = useState(false);
-  const [mapView, setMapView] = useState<"dark" | "satellite">("dark");
-  const [satelliteEnabled, setSatelliteEnabled] = useState(false);
-  const [satelliteSource, setSatelliteSource] = useState<SatelliteImagerySource>("sentinel-hub");
-  const [satelliteQuotaNotice, setSatelliteQuotaNotice] = useState<string | null>(null);
-  const [cellTowers, setCellTowers] = useState<CellTower[]>([]);
-  const [selectedCellTower, setSelectedCellTower] = useState<CellTower | null>(null);
-  const [streetViewMode, setStreetViewMode] = useState(false);
-  const [streetViewTarget, setStreetViewTarget] = useState<[number, number] | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [showEarthquakeCard, setShowEarthquakeCard] = useState(false);
+  const [is3dGlobe, setIs3dGlobe] = useState(true);
   const [mapTarget, setMapTarget] = useState<[number, number] | undefined>(undefined);
   const [myLocation, setMyLocation] = useState<[number, number] | null>(null);
   const [locationStatus, setLocationStatus] = useState<"idle" | "locating" | "live" | "denied">("idle");
-  const [mobileDrawer, setMobileDrawer] = useState<"layers" | "intel" | "menu" | null>(null);
   const locationWatchRef = useRef<number | null>(null);
-  const [earthquakes, setEarthquakes] = useState(31);
+  const [earthquakes, setEarthquakes] = useState(0);
   const [quakeMarkers, setQuakeMarkers] = useState<GeoMarker[]>([]);
   const [flightMarkers, setFlightMarkers] = useState<GeoMarker[]>([]);
   const [commercialFlightMarkers, setCommercialFlightMarkers] = useState<GeoMarker[]>([]);
@@ -457,19 +400,12 @@ export default function App() {
   const [fireCount, setFireCount] = useState<number | null>(null);
   const [weatherMarkers, setWeatherMarkers] = useState<GeoMarker[]>([]);
   const [weatherCount, setWeatherCount] = useState<number | null>(null);
-  const [openLayerCounts, setOpenLayerCounts] = useState<Record<string, number>>({});
-  const [reliefCount, setReliefCount] = useState<number | null>(null);
   const [satellites, setSatellites] = useState<GlobalSatellite[]>([]);
   const [satelliteCount, setSatelliteCount] = useState<number | null>(null);
-  const [timeRange, setTimeRange] = useState("7d");
   const [feedStatus, setFeedStatus] = useState<Record<string, "live" | "sample">>({
-    "Conflict events": "sample", "Protest clusters": "sample", "GPS jamming zones": "sample",
-    "Vessels · AIS": "sample", "Dark ships": "sample", "Submarine cables": "sample", "AI datacenters": "sample",
-    "Military bases": "sample", "Earthquakes · USGS": "sample", "Wildfires · EONET": "sample", "Military flights": "sample",
-    "Intelligence hotspots": "sample", "Sanctions pressure": "sample", "Nuclear facilities": "sample", "Spaceports": "sample",
-    "Critical minerals": "sample", "Pipelines": "sample", "Internet outages": "sample", "Economic centers": "sample",
-    "Waterways": "sample", "Trade routes": "sample", "Weather alerts": "sample", "Canada alerts": "sample", "Satellites · TLE": "sample",
-    "Camera feeds": "sample", "Commercial flights": "sample"
+    "Conflict events": "sample", "Satellites · TLE": "sample",
+    "Military flights": "sample", "Commercial flights": "sample", "Waterways": "sample",
+    "Earthquakes · USGS": "sample", "Wildfires · EONET": "sample", "Weather alerts": "sample", "Camera feeds": "sample",
   });
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [newsState, setNewsState] = useState<"loading" | "ok" | "sample">("loading");
@@ -480,17 +416,14 @@ export default function App() {
   const [showLiveMapFeed, setShowLiveMapFeed] = useState(true);
   const [newsSearch, setNewsSearch] = useState("");
   const [channel, setChannel] = useState(0);
-  const [marketRows, setMarketRows] = useState(markets);
+  const [marketRows, setMarketRows] = useState<string[][]>([]);
   const [marketQuery, setMarketQuery] = useState("");
   const [marketNews, setMarketNews] = useState<{ title: string; url: string; domain: string; time: string; imageUrl?: string }[]>([]);
   const [marketNewsState, setMarketNewsState] = useState<"idle" | "loading" | "ok" | "empty">("idle");
-  const [marketSymbol, setMarketSymbol] = useState("S&P 500");
   const [weatherSnapshot, setWeatherSnapshot] = useState<WeatherSnapshot | null>(null);
   const [weatherState, setWeatherState] = useState<"idle" | "loading" | "live" | "error">("idle");
-  const [refresh, setRefresh] = useState(0);
   const [showNewsPanel, setShowNewsPanel] = useState(false);
   const [showSatelliteViewer, setShowSatelliteViewer] = useState(false);
-  const [globalConflicts, setGlobalConflicts] = useState<GlobalConflictZone[]>([]);
   const [globalConflictMarkers, setGlobalConflictMarkers] = useState<GeoMarker[]>([]);
   const [cyberThreats, setCyberThreats] = useState<GlobalCyberThreat[]>([]);
   const [cyberThreatLevel, setCyberThreatLevel] = useState<string>("—");
@@ -499,40 +432,6 @@ export default function App() {
   const [cameraMarkers, setCameraMarkers] = useState<GeoMarker[]>([]);
   const [activeCamera, setActiveCamera] = useState<GlobalCamera | null>(null);
   const mark = (k: string, s: "live" | "sample") => setFeedStatus(p => (p[k] === s ? p : { ...p, [k]: s }));
-
-  // Listen for Sentinel Hub or provider quota limit notices
-  useEffect(() => {
-    return onSatelliteQuotaExceeded((source, message) => {
-      setSatelliteQuotaNotice(message);
-    });
-  }, []);
-
-  const isCellTowersLayerActive = layers.some(l => l.label === "Cell towers · OpenCellID" && l.active);
-
-  // Fetch cell towers for active region when layer is active
-  useEffect(() => {
-    if (!isCellTowersLayerActive) return;
-    let active = true;
-    const center = mapTarget || flightCenter || [77.42682, 23.1776];
-    const bbox: [number, number, number, number] = [
-      center[1] - 0.4,
-      center[0] - 0.4,
-      center[1] + 0.4,
-      center[0] + 0.4,
-    ];
-
-    fetchCellTowers(bbox)
-      .then(towers => {
-        if (!active) return;
-        setCellTowers(towers);
-        mark("Cell towers · OpenCellID", "live");
-      })
-      .catch(err => {
-        console.warn("Cell tower fetch error:", err);
-      });
-
-    return () => { active = false; };
-  }, [isCellTowersLayerActive, flightCenter, mapTarget]);
 
   const weatherTarget = mapTarget || myLocation || [77.5946, 12.9716];
   useEffect(() => {
@@ -564,15 +463,15 @@ export default function App() {
     else if (lens === "Energy") setChannel(4);
     else setChannel(0);
 
-    setLayers(old => {
+    setLayers(() => {
       if (lens === "World") return initialLayers;
 
       const mapping: Record<string, string[]> = {
-        Tech: ["AI datacenters", "Submarine cables", "Internet outages", "Spaceports", "Earthquakes · USGS", "Military bases"],
-        Finance: ["Conflict events", "Sanctions pressure", "Economic centers", "Vessels · AIS", "AI datacenters"],
-        Commodity: ["Vessels · AIS", "Waterways", "Trade routes", "Critical minerals", "Wildfires · EONET", "Earthquakes · USGS"],
-        Energy: ["Pipelines", "Waterways", "Nuclear facilities", "Vessels · AIS", "Wildfires · EONET", "Earthquakes · USGS", "Conflict events"],
-        Calm: ["Wildfires · EONET", "Earthquakes · USGS", "Weather alerts", "Canada alerts", "Military flights", "Protest clusters"]
+        Tech: ["Satellites · TLE", "Camera feeds", "Commercial flights"],
+        Finance: ["Conflict events", "Commercial flights", "Waterways"],
+        Commodity: ["Waterways", "Wildfires · EONET", "Earthquakes · USGS"],
+        Energy: ["Waterways", "Wildfires · EONET", "Earthquakes · USGS", "Conflict events"],
+        Calm: ["Wildfires · EONET", "Earthquakes · USGS", "Weather alerts"]
       };
 
       const enabled = mapping[lens] || [];
@@ -585,9 +484,14 @@ export default function App() {
     let live = true;
     const updateSignals = async () => {
       try {
-        // Earthquakes via global proxy (normalised JSON)
-        const quakeResult = fetchEarthquakes().then(({ data }) => {
+        // Earthquakes from the official USGS daily GeoJSON feed.
+        const quakeResult = fetchEarthquakes().then(({ data, state }) => {
           if (!live) return;
+          if (state !== "live") {
+            setQuakeMarkers([]);
+            mark("Earthquakes · USGS", "sample");
+            return;
+          }
           setEarthquakes(data.total);
           mark("Earthquakes · USGS", "live");
           setQuakeMarkers(
@@ -600,23 +504,22 @@ export default function App() {
                 kind: "hazard" as const,
                 mag: q.magnitude,
                 label: q.place || "Seismic event",
-                detail: `M${q.magnitude.toFixed(1)} · D${q.depth}km · USGS via Global Proxy · ${new Date(q.time).toISOString().slice(11, 16)} UTC`,
+                detail: `M${q.magnitude.toFixed(1)} · D${q.depth}km · USGS · ${new Date(q.time).toISOString().slice(11, 16)} UTC`,
               })),
           );
-        }).catch(() => { if (live) mark("Earthquakes · USGS", "sample"); });
+        }).catch(() => { if (live) { setQuakeMarkers([]); mark("Earthquakes · USGS", "sample"); } });
 
         // BTC market price (kept as direct call — not proxied by Global)
-        const btcResult = fetch("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true")
-          .then(r => r.json())
+        const btcResult = fetch("/public-feeds/bitcoin")
+          .then(r => { if (!r.ok) throw new Error(`CoinGecko ${r.status}`); return r.json(); })
           .then(coinData => {
             if (!live) return;
             const btc = coinData.bitcoin;
-            if (btc?.usd) setMarketRows(rows => rows.map(row => row[0] === "BTC / USD" ? ["BTC / USD", "CRYPTO", Math.round(btc.usd).toLocaleString(), `${btc.usd_24h_change >= 0 ? "+" : ""}${Number(btc.usd_24h_change || 0).toFixed(2)}%`, btc.usd_24h_change >= 0 ? "up" : "down"] : row));
-          }).catch(() => {});
+            if (Number.isFinite(btc?.usd)) setMarketRows([["BTC / USD", "COINGECKO", Math.round(btc.usd).toLocaleString(), `${btc.usd_24h_change >= 0 ? "+" : ""}${Number(btc.usd_24h_change || 0).toFixed(2)}%`, btc.usd_24h_change >= 0 ? "up" : "down"]]);
+          }).catch(() => { if (live) setMarketRows([]); });
 
         await Promise.allSettled([quakeResult, btcResult]);
-      } catch { /* graceful fallback to sample data */ }
-      if (live) setRefresh(n => n + 1);
+      } catch { /* Feeds show unavailable; no sample observations. */ }
     };
     updateSignals();
     const interval = window.setInterval(updateSignals, POLL_INTERVALS.earthquakes * 1000);
@@ -628,28 +531,24 @@ export default function App() {
     let live = true;
     const loadConflicts = async () => {
       try {
-        const { data } = await fetchConflicts();
+        const { data, state } = await fetchConflicts();
         if (!live) return;
-        setGlobalConflicts(data.zones);
+        if (state !== "live") { setGlobalConflictMarkers([]); mark("Conflict events", "sample"); return; }
         mark("Conflict events", "live");
         // Map conflict zones + live events to GeoMarkers
         const markers: GeoMarker[] = [];
         for (const zone of data.zones) {
-          markers.push({
-            lon: zone.lng, lat: zone.lat, kind: "conflict",
-            label: zone.label,
-            detail: `${zone.severity.toUpperCase()} · ${zone.eventCount} events · ${zone.description.slice(0, 60)}…`,
-          });
           for (const ev of zone.events.slice(0, 3)) {
+            if (!ev.url || !Number.isFinite(ev.lng) || !Number.isFinite(ev.lat)) continue;
             markers.push({
               lon: ev.lng, lat: ev.lat, kind: "conflict",
               label: ev.title.slice(0, 50),
-              detail: `${zone.label} · OSINT event`,
+              detail: `${zone.label} · Published report, approximate map location · ${ev.url}`,
             });
           }
         }
         setGlobalConflictMarkers(markers);
-      } catch { if (live) mark("Conflict events", "sample"); }
+      } catch { if (live) { setGlobalConflictMarkers([]); mark("Conflict events", "sample"); } }
     };
     loadConflicts();
     const interval = window.setInterval(loadConflicts, POLL_INTERVALS.conflicts * 1000);
@@ -677,12 +576,13 @@ export default function App() {
     let live = true;
     const loadSatellites = async () => {
       try {
-        const { data } = await fetchSatellites();
+        const { data, state } = await fetchSatellites();
         if (!live) return;
+        if (state !== "live") { setSatellites([]); setSatelliteCount(0); mark("Satellites · TLE", "sample"); return; }
         setSatellites(data.satellites);
         setSatelliteCount(data.total);
         mark("Satellites · TLE", "live");
-      } catch { if (live) mark("Satellites · TLE", "sample"); }
+      } catch { if (live) { setSatellites([]); setSatelliteCount(0); mark("Satellites · TLE", "sample"); } }
     };
     loadSatellites();
     const interval = window.setInterval(loadSatellites, POLL_INTERVALS.satellites * 1000);
@@ -697,7 +597,8 @@ export default function App() {
       const result = await publicCameras(controller.signal);
       if (!live) return;
       setGlobalCameras(result.cameras);
-      setCameraMarkers(result.cameras.map(c => ({ lon: c.lng, lat: c.lat, kind: "infra", label: c.name, detail: `${c.source} · ${c.stream_type}` })));
+      const cameraStride = Math.max(1, Math.ceil(result.cameras.length / 120));
+      setCameraMarkers(result.cameras.filter((_, index) => index % cameraStride === 0).slice(0, 120).map(c => ({ lon: c.lng, lat: c.lat, kind: "infra", label: c.name, detail: `${c.source} · ${c.stream_type} · sampled map marker` })));
       setCameraStatus(`${result.cameras.length} published cameras. ${result.errors.join(' · ')}`);
       mark("Camera feeds", result.cameras.length ? "live" : "sample");
       setActiveCamera(current => current ? result.cameras.find(c => c.id === current.id) ?? current : null);
@@ -707,58 +608,6 @@ export default function App() {
     return () => { live = false; controller.abort(); window.clearInterval(interval); };
   }, []);
 
-  useEffect(() => {
-    let live = true;
-    const openQueries: Record<string, string> = {
-      "Intelligence hotspots": "(crisis OR escalation OR clashes OR unrest OR emergency)",
-      "Sanctions pressure": "(sanctions OR embargo OR asset freeze OR export controls)",
-      "Internet outages": "(internet outage OR network disruption OR blackout OR telecom outage)",
-      "Economic centers": "(central bank OR stock exchange OR inflation OR currency crisis)",
-      "Pipelines": "(pipeline explosion OR pipeline outage OR oil pipeline OR gas pipeline)",
-      "Waterways": "(strait OR canal OR chokepoint OR shipping lane)",
-      "Trade routes": "(trade route OR shipping route OR supply chain disruption)",
-      "Nuclear facilities": "(nuclear plant OR nuclear facility OR radiation alert)",
-      "Critical minerals": "(lithium OR cobalt OR rare earth OR critical minerals)",
-      "Canada alerts": "(Canada wildfire OR Canada weather alert OR Canada evacuation)",
-    };
-    const loadOpenLayerCounts = async () => {
-      try {
-        const entries = await Promise.all(Object.entries(openQueries).map(async ([layer, query]) => {
-          const url = `https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(query + " sourcelang:english")}&mode=artlist&maxrecords=20&sort=datedesc&format=json`;
-          const res = await fetch(url);
-          const data = await res.json();
-          return [layer, Array.isArray(data?.articles) ? data.articles.length : 0] as const;
-        }));
-        if (!live) return;
-        setOpenLayerCounts(Object.fromEntries(entries));
-        entries.forEach(([layer, count]) => mark(layer, count > 0 ? "live" : "sample"));
-      } catch {
-        if (!live) return;
-        Object.keys(openQueries).forEach(layer => mark(layer, "sample"));
-      }
-    };
-    loadOpenLayerCounts();
-    const interval = window.setInterval(loadOpenLayerCounts, 90000);
-    return () => { live = false; window.clearInterval(interval); };
-  }, []);
-  useEffect(() => {
-    let live = true;
-    const loadReliefWeb = async () => {
-      try {
-        const res = await fetch("https://api.reliefweb.int/v1/reports?appname=vigil-dashboard&profile=list&preset=latest&limit=25");
-        const data = await res.json();
-        if (!live) return;
-        const count = Array.isArray(data?.data) ? data.data.length : 0;
-        setReliefCount(count);
-        mark("Intelligence hotspots", count > 0 ? "live" : "sample");
-      } catch {
-        if (live) mark("Intelligence hotspots", "sample");
-      }
-    };
-    loadReliefWeb();
-    const interval = window.setInterval(loadReliefWeb, 120000);
-    return () => { live = false; window.clearInterval(interval); };
-  }, []);
   useEffect(() => {
     let live = true;
     const controller = new AbortController();
@@ -777,7 +626,7 @@ export default function App() {
           ...flight,
           category: category.toLowerCase() === "military" ? "Military" : category,
           source: data.source || "Global flight API",
-          observedAt: Date.now(),
+          observedAt: flight.observedAt || (data.timestamp ? Date.parse(data.timestamp) : undefined),
           telemetry: flight.telemetry || {},
         });
         const flights = [
@@ -791,6 +640,10 @@ export default function App() {
         const withCoordinates = flights.filter(isAircraftPosition);
         const military = flights.filter(f => f.category === "Military");
         const commercial = flights.filter(f => f.category !== "Military");
+        const plotted = (items: GlobalFlight[], limit: number) => {
+          const stride = Math.max(1, Math.ceil(items.length / limit));
+          return items.filter((_, index) => index % stride === 0).slice(0, limit);
+        };
         const totalReported = typeof data.total === "number" ? data.total : flights.length;
         const militaryReported = typeof data.military_flights?.length === "number" ? data.military_flights.length : military.length;
         const commercialReported = typeof data.commercial_flights?.length === "number" ? data.commercial_flights.length + (data.private_flights?.length || 0) : commercial.length;
@@ -800,20 +653,21 @@ export default function App() {
         setMilitaryFlightCount(military.length);
         setCommercialFlightCount(commercial.length);
         setReportedFlightCounts({ commercial: Math.max(commercialReported, totalReported - militaryReported), military: militaryReported, total: Math.max(totalReported, commercialReported + militaryReported) });
-        setFlightMarkers(military.filter(f => withCoordinates.includes(f)).map(marker));
-        setCommercialFlightMarkers(commercial.filter(f => withCoordinates.includes(f)).map(marker));
-        setFlightStatus(`${data.source || 'Global flight API'} · ${withCoordinates.length || totalReported} current aircraft · updated ${new Date().toLocaleTimeString()}`);
+        setFlightMarkers(plotted(withCoordinates.filter(f => f.category === "Military"), 150).map(marker));
+        setCommercialFlightMarkers(plotted(withCoordinates.filter(f => f.category !== "Military"), 450).map(marker));
+        setFlightStatus(`${data.source || 'Aircraft feed'} · ${withCoordinates.length || totalReported} reported aircraft · received ${new Date().toLocaleTimeString()}`);
         mark("Military flights", "live"); mark("Commercial flights", "live");
       } catch (e) {
         if (!live) return;
-        const fallbackMilitary = fallbackFlightMarkers.filter(marker => marker.label.startsWith("MIL"));
-        const fallbackCommercial = fallbackFlightMarkers.filter(marker => !marker.label.startsWith("MIL"));
-        setFlightMarkers(fallbackMilitary);
-        setCommercialFlightMarkers(fallbackCommercial);
-        setFlightCount(fallbackFlightMarkers.length);
-        setMilitaryFlightCount(fallbackMilitary.length);
-        setCommercialFlightCount(fallbackCommercial.length);
-        setFlightStatus(`${(e as Error).message} · retaining last known aircraft`); mark("Military flights", "sample"); mark("Commercial flights", "sample");
+        setAircraft([]);
+        setFlightMarkers([]);
+        setCommercialFlightMarkers([]);
+        setFlightCount(0);
+        setMilitaryFlightCount(0);
+        setCommercialFlightCount(0);
+        setReportedFlightCounts(undefined);
+        setFlightStatus(`${(e as Error).message} · aircraft feed unavailable`);
+        mark("Military flights", "sample"); mark("Commercial flights", "sample");
       }
     };
     const initial = window.setTimeout(loadFlights, 500);
@@ -838,8 +692,8 @@ export default function App() {
           title: article.title || "Untitled report",
           description: article.description || "Live report from a monitored news publisher.",
           link: article.link,
-          published: article.published || new Date().toISOString(),
-          source: article.source || "Verified news publisher",
+          published: article.published || "",
+          source: article.source || "Source unavailable",
           risk_score: 0,
           coords: null,
           coords_default: true,
@@ -863,7 +717,7 @@ export default function App() {
             title: article.title || "Untitled report",
             description: article.description || "Monitored news headline.",
             link: article.url || "",
-            published: new Date().toISOString(),
+            published: "",
             source: article.source,
             risk_score: 0,
             coords: null,
@@ -884,7 +738,8 @@ export default function App() {
     let live = true;
     const loadFires = async () => {
       try {
-        const res = await fetch("https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&limit=200");
+        const res = await fetch("/public-feeds/wildfires");
+        if (!res.ok) throw new Error(`NASA EONET ${res.status}`);
         const data = await res.json();
         if (!live || !Array.isArray(data?.events)) return;
         const pts: GeoMarker[] = [];
@@ -898,7 +753,7 @@ export default function App() {
         setFireCount(data.events.length);
         setFireMarkers(pts);
         mark("Wildfires · EONET", "live");
-      } catch { mark("Wildfires · EONET", "sample"); }
+      } catch { if (live) { setFireMarkers([]); setFireCount(null); mark("Wildfires · EONET", "sample"); } }
     };
     loadFires();
     const interval = window.setInterval(loadFires, 60000);
@@ -908,7 +763,8 @@ export default function App() {
     let live = true;
     const loadWeather = async () => {
       try {
-        const res = await fetch("https://api.weather.gov/alerts/active?status=actual&message_type=alert");
+        const res = await fetch("/public-feeds/weather-alerts");
+        if (!res.ok) throw new Error(`NWS ${res.status}`);
         const data = await res.json();
         if (!live || !Array.isArray(data?.features)) return;
         const markers = data.features
@@ -927,7 +783,7 @@ export default function App() {
         setWeatherCount(data.features.length);
         setWeatherMarkers(markers);
         mark("Weather alerts", "live");
-      } catch { mark("Weather alerts", "sample"); }
+      } catch { if (live) { setWeatherMarkers([]); setWeatherCount(null); mark("Weather alerts", "sample"); } }
     };
     loadWeather();
     const interval = window.setInterval(loadWeather, 60000);
@@ -936,38 +792,20 @@ export default function App() {
   const on = useMemo(() => new Set(layers.filter(l => l.active).map(l => l.label)), [layers]);
   const globeMarkers = useMemo(() => {
     const out: GeoMarker[] = [];
-    const addLayerMarkers = (label: string, liveMarkers: GeoMarker[], sampleLabel = label) => {
-      const samples = layerMarkerSamples[sampleLabel] || [];
-      out.push(...(liveMarkers.length ? liveMarkers : samples));
-    };
-    if (on.has("Conflict events")) out.push(...(globalConflictMarkers.length ? globalConflictMarkers : conflictPoints.slice(0, 4)));
-    if (on.has("Intelligence hotspots")) addLayerMarkers("Intelligence hotspots", intelligencePoints.filter(p => p.label.includes("hotspot")));
-    if (on.has("Protest clusters")) addLayerMarkers("Protest clusters", conflictPoints.slice(4));
-    if (on.has("Sanctions pressure")) addLayerMarkers("Sanctions pressure", intelligencePoints.filter(p => p.label.includes("sanctions")));
-    if (on.has("Earthquakes · USGS")) addLayerMarkers("Earthquakes · USGS", quakeMarkers);
-    if (on.has("Wildfires · EONET")) addLayerMarkers("Wildfires · EONET", fireMarkers);
-    if (on.has("Weather alerts")) addLayerMarkers("Weather alerts", weatherMarkers);
-    if (on.has("Canada alerts")) out.push(...intelligencePoints.filter(p => p.label.includes("Canada")));
-    if (on.has("Vessels · AIS")) out.push(...chokePoints);
-    if (on.has("Dark ships")) addLayerMarkers("Dark ships", []);
-    if (on.has("Waterways")) addLayerMarkers("Waterways", []);
-    if (on.has("Trade routes")) addLayerMarkers("Trade routes", []);
-    if (on.has("Military flights")) out.push(...(flightMarkers.length ? flightMarkers : fallbackFlightMarkers.filter(marker => marker.label.startsWith("MIL"))));
-    if (on.has("Commercial flights")) out.push(...(commercialFlightMarkers.length ? commercialFlightMarkers : fallbackFlightMarkers.filter(marker => !marker.label.startsWith("MIL"))));
-    if (on.has("Military bases")) out.push(...militaryBases);
-    if (on.has("Nuclear facilities")) out.push(...strategicPoints.filter(p => p.label.includes("nuclear")));
-    if (on.has("Spaceports")) out.push(...strategicPoints.filter(p => p.label.includes("Spaceport") || p.label.includes("ISRO") || p.label.includes("Cape")));
-    if (on.has("Critical minerals")) out.push(...strategicPoints.filter(p => p.label.includes("coal") || p.label.includes("mineral")));
-    if (on.has("Pipelines")) out.push(...infrastructurePoints.filter(p => p.label.includes("pipelines")));
-    if (on.has("Internet outages")) addLayerMarkers("Internet outages", infrastructurePoints.filter(p => p.label.includes("internet")));
-    if (on.has("Economic centers")) out.push(...infrastructurePoints.filter(p => p.label.includes("markets")));
-    if (on.has("Submarine cables") || on.has("AI datacenters")) out.push(...infraPoints);
-    if (on.has("Camera feeds")) addLayerMarkers("Camera feeds", cameraMarkers);
-    if (on.has("GPS jamming zones")) addLayerMarkers("GPS jamming zones", []);
-    if (on.has("Cell towers · OpenCellID")) addLayerMarkers("Cell towers · OpenCellID", cellTowers.map(t => ({ lon: t.lon, lat: t.lat, kind: "infra" as const, label: t.operator || "Cell tower", detail: `${t.radio} · OpenCellID` })));
+    if (on.has("Conflict events")) out.push(...globalConflictMarkers);
+    if (on.has("Earthquakes · USGS")) out.push(...quakeMarkers);
+    if (on.has("Wildfires · EONET")) out.push(...fireMarkers);
+    if (on.has("Weather alerts")) out.push(...weatherMarkers);
+    if (on.has("Waterways")) out.push(...chokePoints);
+    if (on.has("Military flights")) out.push(...flightMarkers);
+    if (on.has("Commercial flights")) out.push(...commercialFlightMarkers);
+    if (on.has("Camera feeds")) out.push(...cameraMarkers);
+    if (on.has("Global incidents")) out.push(...restored.incidents);
+    if (on.has("Vessels · AIS")) out.push(...restored.ships);
+    if (on.has("Naval vessels")) out.push(...restored.naval);
     if (myLocation) out.push({ lon: myLocation[0], lat: myLocation[1], kind: "base", label: "My live location", detail: "Browser GPS position · live location marker" });
     return out;
-  }, [on, quakeMarkers, flightMarkers, commercialFlightMarkers, fireMarkers, weatherMarkers, globalConflictMarkers, cameraMarkers, myLocation]);
+  }, [on, quakeMarkers, flightMarkers, commercialFlightMarkers, fireMarkers, weatherMarkers, globalConflictMarkers, cameraMarkers, myLocation, restored.incidents, restored.ships, restored.naval]);
   const newsQuery = useMemo(() => {
     const lensQuery: Record<string, string> = {
       Finance: "(markets OR economy OR inflation)",
@@ -1030,17 +868,17 @@ export default function App() {
     return () => { live = false; window.clearTimeout(timer); };
   }, [marketQuery]);
   const aiInsights = useMemo(() => {
-    const hotHeadline = news[0]?.title || "Global feeds are initializing; sample intelligence remains active.";
-    const risk = Math.min(96, 48 + on.size * 2 + Math.round((earthquakes + (fireCount || 0) + (weatherCount || 0)) / 12));
-    const posture = risk > 78 ? "HIGH WATCH" : risk > 62 ? "ELEVATED" : "STABLE WATCH";
     return [
-      { label: "Posture", value: posture, detail: `${risk}/100 composite from active layers, hazards, and live headlines.` },
-      { label: "Top driver", value: hotHeadline, detail: `${newsState === "ok" ? "Live GDELT headline" : "Fallback brief"} · ${timeRange} scope.` },
-      { label: "India lens", value: "Keep India desk pinned", detail: "India channels, ports, weather, security, and satellite assets are prioritized by default." },
-      { label: "Convergence", value: "Maritime + weather + sanctions", detail: "Watch chokepoints when commodity and energy lenses are active together." },
+      { label: "Latest headline", value: news[0]?.title || "News feed unavailable", detail: news[0] ? `${news[0].source} · ${news[0].time}` : "No verified headline received." },
+      { label: "Earthquakes", value: feedStatus["Earthquakes · USGS"] === "live" ? `${earthquakes} reported` : "Feed unavailable", detail: "USGS recent seismic events; map shows magnitude 2.5+." },
+      { label: "Wildfires", value: feedStatus["Wildfires · EONET"] === "live" ? `${fireCount ?? 0} returned events` : "Feed unavailable", detail: "NASA EONET open wildfire results, limited to 200." },
+      { label: "Aircraft", value: reportedFlightCounts ? `${reportedFlightCounts.total} reported` : "Feed unavailable", detail: flightStatus },
     ];
-  }, [earthquakes, fireCount, news, newsState, on.size, timeRange, weatherCount]);
-  const toggle = (label: string) => setLayers(old => old.map(l => l.label === label ? { ...l, active: !l.active } : l));
+  }, [earthquakes, fireCount, news, feedStatus, reportedFlightCounts, flightStatus]);
+  const toggle = (label: string) => {
+    if (label === "Day / night" && !on.has(label)) setIs3dGlobe(true);
+    setLayers(old => old.map(l => l.label === label ? { ...l, active: !l.active } : l));
+  };
   const openTab = (nextTab: string) => {
     if (rightPanelOpen && tab === nextTab) {
       setRightPanelOpen(false);
@@ -1057,8 +895,6 @@ export default function App() {
         const location: [number, number] = [position.coords.longitude, position.coords.latitude];
         setMyLocation(location);
         setMapTarget(location);
-        setMapView("satellite");
-        setFlat(false);
         setZoom(3);
         setLocationStatus("live");
         if (locationWatchRef.current == null && navigator.geolocation) {
@@ -1071,529 +907,766 @@ export default function App() {
       return;
     }
     setMapTarget(myLocation);
-    setMapView("satellite");
-    setFlat(false);
     setZoom(3);
   };
   const decorate = (l: Layer): Layer => {
-    const fallback = LAYER_BASELINES[l.label] || l.count || "12";
     let liveCount: string | null = null;
+    if (l.label === "Day / night") return { ...l, count: "3D" };
+    if (l.label === "Submarine cables") return { ...l, count: restored.cables ? String(restored.cables.features.length) : "—" };
+    if (l.label === "Global incidents" || l.label === "Vessels · AIS" || l.label === "Naval vessels") {
+      const count = l.label === "Global incidents" ? restored.incidents.length : l.label === "Vessels · AIS" ? restored.ships.length : restored.naval.length;
+      return { ...l, count: restored.status[l.label] === "live" ? String(count) : "—" };
+    }
 
-    if (l.label === "Conflict events" && globalConflicts.length > 0) {
-      liveCount = String(globalConflicts.length);
+    if (l.label === "Conflict events" && feedStatus[l.label] === "live") {
+      liveCount = String(globalConflictMarkers.length);
     } else if (l.label === "Camera feeds") {
       if (globalCameras.length > 0) liveCount = globalCameras.length.toLocaleString();
       else if (cameraMarkers.length > 0) liveCount = cameraMarkers.length.toLocaleString();
-    } else if (l.label === "Earthquakes · USGS") {
-      if (earthquakes > 0) liveCount = earthquakes.toString();
-    } else if (l.label === "Wildfires · EONET" && fireCount != null && fireCount > 0) {
-      liveCount = fireCount.toString();
-    } else if (l.label === "Weather alerts" && weatherCount != null && weatherCount > 0) {
-      liveCount = weatherCount.toString();
-    } else if (l.label === "Military flights" && reportedFlightCounts && reportedFlightCounts.military > 0) {
+    } else if (l.label === "Earthquakes · USGS" && feedStatus[l.label] === "live") {
+      liveCount = earthquakes.toString();
+    } else if (l.label === "Wildfires · EONET" && feedStatus[l.label] === "live") {
+      liveCount = String(fireCount ?? 0);
+    } else if (l.label === "Weather alerts" && feedStatus[l.label] === "live") {
+      liveCount = String(weatherCount ?? 0);
+    } else if (l.label === "Military flights" && reportedFlightCounts) {
       liveCount = reportedFlightCounts.military.toLocaleString();
-    } else if (l.label === "Commercial flights" && reportedFlightCounts && reportedFlightCounts.commercial > 0) {
+    } else if (l.label === "Commercial flights" && reportedFlightCounts) {
       liveCount = reportedFlightCounts.commercial.toLocaleString();
-    } else if (l.label === "Intelligence hotspots" && reliefCount != null && reliefCount > 0) {
-      liveCount = String(reliefCount + (openLayerCounts[l.label] || 0));
-    } else if (l.label === "Satellites · TLE" && satelliteCount != null && satelliteCount > 0) {
+    } else if (l.label === "Satellites · TLE" && feedStatus[l.label] === "live" && satelliteCount != null) {
       liveCount = satelliteCount.toLocaleString();
-    } else if (l.label === "Cell towers · OpenCellID" && cellTowers.length > 0) {
-      liveCount = cellTowers.length.toString();
-    } else if (openLayerCounts[l.label] != null && openLayerCounts[l.label] > 0) {
-      liveCount = String(openLayerCounts[l.label]);
+    } else if (l.label === "Waterways") {
+      liveCount = String(chokePoints.length);
     }
 
-    const finalCount = (liveCount && liveCount !== "0") ? liveCount : fallback;
-    return { ...l, count: finalCount };
+    return { ...l, count: liveCount ?? "—" };
   };
+
+  const instabilityHotspots = useMemo(() => [...quakeMarkers]
+    .filter(item => Number.isFinite(item.mag))
+    .sort((a, b) => (b.mag || 0) - (a.mag || 0))
+    .slice(0, 3)
+    .map(item => ({ name: item.label, score: `M${item.mag?.toFixed(1)}`, target: [item.lon, item.lat] as [number, number] })), [quakeMarkers]);
+
+  const signals = useMemo(() => {
+    const seismic = quakeMarkers.slice(0, 2).map(item => [`M${item.mag?.toFixed(1)} earthquake · ${item.label}`, "USGS", "observed", (item.mag || 0) >= 5 ? "warning" : "neutral"]);
+    const headlines = newsState === "ok" ? news.slice(0, 4).map(item => [item.title, item.source, item.time, "neutral"]) : [];
+    return [...seismic, ...headlines].slice(0, 5);
+  }, [quakeMarkers, news, newsState]);
+
+  const tickerAlerts = useMemo(() => {
+    return signals.length ? signals.map((s) => s[0]) : ["Waiting for verified feed updates"];
+  }, [signals]);
+
   if (!launched) return <VigilHero onLaunch={() => setLaunched(true)} clock={clock} />;
 
-  return <main className="app-shell">
-    <header className="topbar">
-      <div className="brand"><img src={vigilLogo} alt="VIGIL" /><span>VIGIL</span></div>
-      <div className="lenses">{["World", "Tech", "Finance", "Commodity", "Energy", "Calm"].map(x => <button onClick={() => setLens(x)} className={lens === x ? "active" : ""} key={x}>{x}</button>)}</div>
-      <button className="command-trigger" onClick={() => setCommand(true)}><kbd>⌘K</kbd> Search commands, countries, layers…</button>
-      <div className="top-actions">
-        <button onClick={() => setShowNewsPanel(!showNewsPanel)} className="icon-btn news-btn" title="Global News Channels">
-          🌍 News
+  return <main className="glass-dashboard-shell">
+    {/* Frosted Glass Navigation Bar (Screenshot 2) */}
+    <header className="glass-topbar">
+      <div className="glass-brand">
+        <img src={vigilLogo} alt="VIGIL" />
+        <span>VIGIL <small>World Monitor</small></span>
+      </div>
+
+      <div className="glass-lenses-pill">
+        {["World", "Tech", "Finance", "Commodity", "Energy", "Calm"].map((x) => (
+          <button
+            key={x}
+            onClick={() => setLens(x)}
+            className={`glass-lens-btn ${lens === x ? "active" : ""}`}
+          >
+            {x}
+          </button>
+        ))}
+      </div>
+
+      <button className="glass-search-trigger" onClick={() => setCommand(true)}>
+        <Search size={14} />
+        <span>Search commands, countries, layers…</span>
+        <kbd>⌘K</kbd>
+      </button>
+
+      <div className="glass-top-actions">
+        <button
+          onClick={() => setShowNewsPanel(!showNewsPanel)}
+          className="glass-action-pill"
+          title="Global News Channels"
+        >
+          <AlertTriangle size={14} />
+          <span>News</span>
         </button>
-        <button onClick={() => setShowSatelliteViewer(!showSatelliteViewer)} className="icon-btn satellite-btn" title="Satellite Tracker">
-          🛰️ Satellites
+
+        <button
+          onClick={() => setShowSatelliteViewer(!showSatelliteViewer)}
+          className="glass-action-pill"
+          title="Satellite Tracker"
+        >
+          <span>🛰️</span>
+          <span>Satellites</span>
         </button>
-        <button onClick={() => setTheme(t => t === "dark" ? "light" : "dark")} className="theme-toggle" aria-label="Toggle theme">
+
+        <button
+          onClick={() => openTab("Aviation")}
+          className={`glass-action-pill ${tab === "Aviation" && rightPanelOpen ? "active" : ""}`}
+          title="View observed aircraft"
+        >
+          <Plane size={14} />
+          <span>Aircraft</span>
+        </button>
+
+        <button
+          onClick={() => { setTab("Cameras"); setRightPanelOpen(true); }}
+          className={`glass-action-pill ${tab === "Cameras" && rightPanelOpen ? "active" : ""}`}
+          title="Explore published public camera feeds"
+          aria-label="EXPLORE PUBLIC CAMERAS"
+        >
+          <Eye size={14} />
+          <span>Cameras</span>
+        </button>
+
+        <button
+          onClick={() => setShowPowerUpModal(true)}
+          className="glass-action-pill"
+          title="POWER UP — Configure API credentials"
+        >
+          <Zap size={14} />
+          <span>Power Up</span>
+        </button>
+
+        <button
+          onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+          className="glass-action-pill"
+          aria-label="Toggle theme"
+        >
           {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
         </button>
-        <span className="clock">UTC {clock.toISOString().slice(11, 19)}</span>
-        <span className="live"><i /> LIVE</span>
-        <button className="icon-btn">♢<b>3</b></button>
-        <button className="avatar">A</button>
-      </div>
-      <div className="mobile-header-actions">
-        <button className="mobile-search-btn" onClick={() => setCommand(true)} aria-label="Search">
-          <Search size={16} />
-        </button>
-        <button
-          className={`mobile-menu-btn ${mobileDrawer === "menu" ? "active" : ""}`}
-          onClick={() => setMobileDrawer(d => d === "menu" ? null : "menu")}
-          aria-label="Toggle mobile menu"
-        >
-          {mobileDrawer === "menu" ? <X size={18} /> : <Menu size={18} />}
-        </button>
+
+        <span className="glass-clock-badge">
+          UTC {clock.toISOString().slice(11, 19)}
+        </span>
+
+        <span className="live">
+          <i /> MONITORING
+        </span>
+
+        <div className="glass-avatar-circle" title="User Profile">
+          A
+        </div>
       </div>
     </header>
-    <section className={`workspace ${rightPanelOpen ? "right-panel-expanded" : "right-panel-rail"}`}>
-      <aside className={`left-panel panel ${mobileDrawer === "layers" ? "mobile-open" : ""}`}>
-        <div className="mobile-panel-header">
-          <div className="mobile-panel-title">
-            <Layers size={14} />
-            <span>MAP LAYERS & SATELLITE</span>
-          </div>
-          <button className="mobile-panel-close-btn" onClick={() => setMobileDrawer(null)} aria-label="Close layers">
-            <X size={16} />
-          </button>
-        </div>
-        <div className="panel-title layer-panel-head"><span>MAP LAYERS</span><button onClick={selectAllLayers}>{on.size === layers.length ? "DESELECT ALL" : "SELECT ALL"}</button><small>{on.size} / {layers.length} ON</small></div>
-        <button className="location-button" onClick={pinMyLocation}>{locationStatus === "live" ? "⌖ RECENTER ON MY LOCATION" : locationStatus === "locating" ? "⌖ LOCATING..." : locationStatus === "denied" ? "⌖ LOCATION UNAVAILABLE" : "⌖ PIN MY LOCATION"}</button>
 
-        {/* SATELLITE IMAGERY CONTROL CARD (OFF BY DEFAULT) */}
-        <div className="satellite-control-card">
-          <div className="satellite-control-header">
-            <div className="satellite-control-title">
-              <Globe2 size={13} />
-              <span>SATELLITE IMAGERY</span>
+    {/* Body Workspace: Modern 3-Column Glass Layout (Matching Screenshots 1 & 2) */}
+    <div className={`glass-workspace ${!showLayersPanel && !rightPanelOpen ? "both-collapsed" : !showLayersPanel ? "left-collapsed" : !rightPanelOpen ? "right-collapsed" : ""}`}>
+
+      {/* 1. LEFT PANEL: Strategic Feeds & Map Layers (Matching Screenshot 2 & Screenshot 1 left rail) */}
+      {showLayersPanel ? (
+        <aside className="glass-left-panel">
+          <div className="glass-panel-header">
+            <div className="glass-panel-title">
+              <Layers size={14} color="#38bdf8" />
+              <span>MAP LAYERS</span>
             </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                className="glass-select-btn"
+                onClick={selectAllLayers}
+                title="Toggle all layers"
+              >
+                {on.size === layers.length ? "ALL OFF" : "ALL ON"}
+              </button>
+              <span className="glass-counter-badge">{on.size}/{layers.length}</span>
+              <button
+                className="glass-select-btn"
+                onClick={() => setShowLayersPanel(false)}
+                title="Collapse panel"
+                style={{ padding: "3px 6px" }}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          <button className="glass-location-btn" onClick={pinMyLocation}>
+            <Crosshair size={13} />
+            <span>{locationStatus === "live" ? "RECENTER MY LOCATION" : locationStatus === "locating" ? "LOCATING..." : "PIN MY LOCATION"}</span>
+          </button>
+
+          <div className="glass-layer-shortcuts" aria-label="Live data views">
+            <button onClick={() => openTab("Cameras")}><Eye size={13} /> Camera previews</button>
+            <button onClick={() => openTab("Live Now")}><Radio size={13} /> Live news</button>
+            <button onClick={() => setShowSatelliteViewer(true)}><GlobeIcon size={13} /> Satellite catalog</button>
+            <button onClick={() => openTab("Aviation")}><Plane size={13} /> Air traffic</button>
+          </div>
+          {/* Layer Categories List */}
+          <div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingRight: 4 }}>
+            {layerGroups.map((g) => (
+              <div key={g} style={{ marginBottom: "12px" }}>
+                <p className="glass-group-label">{g}</p>
+                {layers
+                  .filter((l) => l.group === g)
+                  .map((l) => (
+                    <LayerRow
+                      key={l.label}
+                      layer={decorate(l)}
+                      status={restored.status[l.label] || feedStatus[l.label]}
+                      onToggle={() => toggle(l.label)}
+                    />
+                  ))}
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom Filter Pills */}
+          <p className="layer-data-note">0 = no positions reported · — = unavailable. Waterways and cables are geographic references.</p>
+          <div style={{ display: "flex", gap: 4, marginTop: 10, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.06)", overflowX: "auto" }}>
             <button
-              className={`toggle ${satelliteEnabled ? "on" : ""}`}
-              onClick={() => {
-                const next = !satelliteEnabled;
-                setSatelliteEnabled(next);
-                if (next && !satelliteSource) {
-                  setSatelliteSource("sentinel-hub");
-                }
-              }}
-              aria-label="Toggle satellite imagery overlay"
+              className="glass-select-btn"
+              style={{ background: is3dGlobe ? "rgba(56,189,248,0.2)" : "rgba(255,255,255,0.06)", borderColor: is3dGlobe ? "#38bdf8" : undefined }}
+              onClick={() => setIs3dGlobe((g) => !g)}
             >
-              <i />
+              {is3dGlobe ? "🌐 3D Globe" : "🗺 2D Map"}
+            </button>
+            <button
+              className="glass-select-btn"
+              onClick={() => openTab("Aviation")}
+            >
+              ✈ Aircraft
+            </button>
+            <button
+              className="glass-select-btn"
+              onClick={() => setShowPowerUpModal(true)}
+            >
+              ⚡ Keys
             </button>
           </div>
+        </aside>
+      ) : (
+        <aside className="glass-sidebar-pill" style={{ height: "100%", alignSelf: "stretch" }}>
+          <div className="glass-rail-group">
+            <button
+              className="glass-rail-icon-btn"
+              title="Expand Map Layers"
+              onClick={() => setShowLayersPanel(true)}
+            >
+              <Layers size={18} />
+              <small className="rail-caption">Layers</small>
+            </button>
+            <button
+              className="glass-rail-icon-btn"
+              title="Toggle 3D / 2D"
+              onClick={() => setIs3dGlobe((g) => !g)}
+            >
+              <Compass size={18} />
+            </button>
+            <button
+              className="glass-rail-icon-btn"
+              title="Observed aircraft"
+              onClick={() => openTab("Aviation")}
+            >
+              <Plane size={18} />
+            </button>
+            <button
+              className="glass-rail-icon-btn"
+              title="Global Intel"
+              onClick={() => setRightPanelOpen(true)}
+            >
+              <Radar size={18} />
+            </button>
+          </div>
+        </aside>
+      )}
 
-          {satelliteEnabled && (
-            <div className="satellite-source-selector">
-              <span className="satellite-source-label">Select Imagery Source:</span>
-              <div className="satellite-source-options">
-                {(
-                  [
-                    ["sentinel-hub", "Sentinel Hub", "Process API"],
-                    ["copernicus", "Copernicus Data Space", "ESA Official"],
-                    ["aws-sentinel", "AWS Open Data (S2)", "Public S3"],
-                    ["landsat", "Landsat (NASA/USGS)", "15-30m ARD"],
-                  ] as const
-                ).map(([srcId, label, badge]) => (
-                  <button
-                    key={srcId}
-                    className={`satellite-source-btn ${satelliteSource === srcId ? "active" : ""}`}
-                    onClick={() => {
-                      setSatelliteSource(srcId);
-                      setSatelliteQuotaNotice(null);
-                    }}
-                  >
-                    <span>{label}</span>
-                    <span className="satellite-source-badge">{badge}</span>
-                  </button>
-                ))}
-              </div>
+      {/* Full-screen Earth canvas with floating controls. */}
+      <section className="glass-map-zone" style={{ position: "relative", minWidth: 0, height: "100%", borderRadius: 20, overflow: "hidden", border: "1px solid var(--glass-border)", background: "#060911" }}>
+        {/* Floating Top Map Toolbar */}
+        <div className="glass-map-toolbar">
+          <div className="glass-operating-badge">
+            <span>{is3dGlobe ? "SATELLITE SURVEILLANCE // 3D GLOBE" : "TACTICAL PROJECTION // 2D FLAT"}</span>
+            <small>MAP LAYERS UPDATE WHEN SOURCES RESPOND</small>
+          </div>
 
-              <div className="satellite-source-specs">
-                <div><span>Provider:</span><strong>{SATELLITE_SOURCES[satelliteSource].provider}</strong></div>
-                <div><span>Resolution:</span><strong>{SATELLITE_SOURCES[satelliteSource].resolution}</strong></div>
-                <div><span>Revisit:</span><strong>{SATELLITE_SOURCES[satelliteSource].revisitDays}</strong></div>
-              </div>
+          <div className="glass-map-tools-group">
+            <button
+              className={`glass-map-tool-btn ${is3dGlobe ? "active" : ""}`}
+              onClick={() => setIs3dGlobe(true)}
+              title="Interactive 3D globe"
+            >
+              <Compass size={13} />
+              <span>3D Globe</span>
+            </button>
+            <button
+              className={`glass-map-tool-btn ${!is3dGlobe ? "active" : ""}`}
+              onClick={() => setIs3dGlobe(false)}
+              title="Flat 2D Projection"
+            >
+              <GlobeIcon size={13} />
+              <span>2D Map</span>
+            </button>
+            <button
+              className="glass-map-tool-btn"
+              onClick={() => setZoom((z) => Math.min(5, +(z + 0.3).toFixed(2)))}
+              title="Zoom In"
+            >
+              +
+            </button>
+            <button
+              className="glass-map-tool-btn"
+              onClick={() => setZoom((z) => Math.max(0.6, +(z - 0.3).toFixed(2)))}
+              title="Zoom Out"
+            >
+              −
+            </button>
+            <button
+              className="glass-map-tool-btn"
+              onClick={() => {
+                setMapTarget([0, 20]);
+                setZoom(1);
+              }}
+              title="Reset View"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
 
-              {satelliteQuotaNotice && (
-                <div className="satellite-quota-banner">
-                  <span className="satellite-quota-banner-text">
-                    ⚠️ {satelliteQuotaNotice}
-                  </span>
-                  <button
-                    className="satellite-quota-switch-btn"
-                    onClick={() => {
-                      setSatelliteSource("copernicus");
-                      setSatelliteQuotaNotice(null);
-                    }}
-                  >
-                    Switch to Copernicus (No Cap) →
-                  </button>
-                </div>
-              )}
+        {/* Floating seismic panel with a persistent reopen control. */}
+        {showEarthquakeCard ? (
+          <div className="glass-instability-card">
+            <div className="glass-instability-head">
+              <strong>RECENT EARTHQUAKES</strong>
+              <span>{feedStatus["Earthquakes · USGS"] === "live" ? "USGS" : "UNAVAILABLE"}</span>
+              <button type="button" className="glass-instability-close" onClick={() => setShowEarthquakeCard(false)} aria-label="Hide earthquake panel" title="Hide earthquake panel">×</button>
             </div>
+            {instabilityHotspots.length === 0 && <p className="news-empty">No current seismic feed.</p>}
+            {instabilityHotspots.slice(0, 3).map((item) => (
+              <button
+                type="button"
+                key={`${item.name}-${item.target[0]}`}
+                className="glass-instability-item"
+                onClick={() => {
+                  setMapTarget(item.target);
+                  setZoom(2.8);
+                }}
+                title={`Focus ${item.name}`}
+              >
+                <span className="code">EQ</span>
+                <span title={item.name}>{item.name}</span>
+                <span className="score">{item.score}</span>
+                <span className="trend">↗</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <button type="button" className="glass-instability-toggle" onClick={() => setShowEarthquakeCard(true)} aria-label="Show earthquake panel" title="Show recent earthquakes">
+            <Radar size={14} />
+            <span>Earthquakes</span>
+            <small>{feedStatus["Earthquakes · USGS"] === "live" ? earthquakes : "—"}</small>
+          </button>
+        )}
+
+        {/* Center Globe Canvas (Cesium 3D Globe or 2D Map) */}
+        <div className="world-map" style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
+          {is3dGlobe ? (
+            <CesiumGlobe
+              dayNight={on.has("Day / night")}
+              cables={on.has("Submarine cables") ? restored.cables : null}
+              markers={globeMarkers}
+              satellites={on.has("Satellites · TLE") ? satellites : []}
+              zoom={zoom}
+              target={mapTarget}
+              onMapCenter={(center) =>
+                setFlightCenter((previous) =>
+                  Math.abs(previous[0] - center[0]) + Math.abs(previous[1] - center[1]) > 0.1
+                    ? center
+                    : previous
+                )
+              }
+              onSelect={(marker, satellite) => {
+                if (marker.flight) {
+                  setSelectedAircraft(marker.flight);
+                  return;
+                }
+                const cam = globalCameras.find((c) => c.name === marker.label);
+                if (cam) {
+                  setActiveCamera(cam);
+                  return;
+                }
+                setSelectedPoint({ marker, satellite });
+              }}
+              onOpenPowerUp={() => setShowPowerUpModal(true)}
+            />
+          ) : (
+            <Globe
+              cables={on.has("Submarine cables") ? restored.cables : null}
+              onMapCenter={(center) =>
+                setFlightCenter((previous) =>
+                  Math.abs(previous[0] - center[0]) + Math.abs(previous[1] - center[1]) > 0.1
+                    ? center
+                    : previous
+                )
+              }
+              markers={globeMarkers}
+              satellites={on.has("Satellites · TLE") ? satellites : []}
+              flat={true}
+              zoom={zoom}
+              target={mapTarget}
+              onSelect={(marker, satellite) => {
+                if (marker.flight) {
+                  setSelectedAircraft(marker.flight);
+                  return;
+                }
+                const cam = globalCameras.find((c) => c.name === marker.label);
+                if (cam) {
+                  setActiveCamera(cam);
+                  return;
+                }
+                setSelectedPoint({ marker, satellite });
+              }}
+            />
           )}
         </div>
 
-        {layerGroups.map(g => <div key={g}>
-          <p className="group-label">{g}</p>
-          {layers.filter(l => l.group === g).map(l => <LayerRow key={l.label} layer={decorate(l)} status={feedStatus[l.label]} onToggle={() => toggle(l.label)} />)}
-        </div>)}
-        <button className="location-button" onClick={() => openTab("Aviation")}>SEARCH FLIGHTS</button><button className="location-button" onClick={() => openTab("Cameras")}>EXPLORE PUBLIC CAMERAS</button><div className="legend"><span><i className="dot red" /> Critical</span><span><i className="dot gold" /> Elevated</span><span><i className="dot green" /> Stable</span><span>Aircraft color: altitude</span></div>
-      </aside>
-      <section className="map-zone">
-        <div className="map-toolbar">
-          <div>
-            <span className="eyebrow">GLOBAL OPERATING PICTURE · {globeMarkers.length} PLOTTED</span>
-            <strong>AS OF {clock.toISOString().slice(11, 19)} UTC · {flat ? "2D MERCATOR" : "3D GLOBE"} · {timeRange}</strong>
+        {/* Breaking Alert Marquee Ticker */}
+        <div className="glass-alert-ticker">
+          <div className="glass-alert-ticker-tag">
+            <Radio size={12} color="#f43f5e" />
+            <span>BREAKING ALERTS</span>
           </div>
-          <div className="map-tools">
-            {["1h", "6h", "24h", "48h", "7d"].map(range => (
-              <button key={range} className={timeRange === range ? "active" : ""} onClick={() => setTimeRange(range)}>{range}</button>
-            ))}
-            <button
-              className={satelliteEnabled ? "active" : ""}
-              onClick={() => {
-                const next = !satelliteEnabled;
-                setSatelliteEnabled(next);
-                if (next) setFlat(true);
-              }}
-              title="Toggle Satellite Imagery Overlay"
-            >
-              ▧ {satelliteEnabled ? `Satellite (${SATELLITE_SOURCES[satelliteSource].badge})` : "Satellite"}
-            </button>
-            <button
-              className={streetViewMode ? "active" : ""}
-              onClick={() => {
-                setStreetViewTarget(flightCenter || [77.42682, 23.1776]);
-                setStreetViewMode(false);
-              }}
-              title="Open Street View at the current map center"
-            >
-              <Navigation size={11} style={{ display: "inline", verticalAlign: "-1px", marginRight: 3 }} />
-              Street View 360°
-            </button>
-            <button className={!flat ? "active" : ""} onClick={() => setFlat(false)}>◎ 3D Globe</button>
-            <button className={flat ? "active" : ""} onClick={() => setFlat(true)}>◫ 2D Map</button>
-            <button onClick={() => setZoom(z => Math.max(0.6, +(z - 0.2).toFixed(2)))} aria-label="Zoom out">−</button>
-            <button onClick={() => setZoom(z => Math.min(5, +(z + 0.2).toFixed(2)))} aria-label="Zoom in">+</button>
-          </div>
-        </div>
-
-        {/* Street View Mode Active Banner */}
-        {streetViewMode && (
-          <div className="streetview-mode-banner">
-            <span>👁 STREET VIEW MODE ACTIVE — Click anywhere on the globe or city to open 360° ground imagery</span>
-            <button
-              onClick={() => {
-                setStreetViewTarget(flightCenter || [77.42682, 23.1776]);
-                setStreetViewMode(false);
-              }}
-              style={{ background: "#0284c7", border: "none", color: "#fff", borderRadius: 3, padding: "2px 8px", cursor: "pointer", fontSize: 10, fontWeight: 600 }}
-            >
-              Open Center ↗
-            </button>
-            <button className="streetview-mode-close-btn" onClick={() => setStreetViewMode(false)}>Exit</button>
-          </div>
-        )}
-
-        {/* Active Satellite Imagery Attribution Pill */}
-        {satelliteEnabled && (
-          <div className="satellite-attribution-pill">
-            <strong>{SATELLITE_SOURCES[satelliteSource].badge}</strong>
-            <span>{SATELLITE_SOURCES[satelliteSource].attribution}</span>
-          </div>
-        )}
-
-        <div className={flat ? "world-map flat" : "world-map"}>
-          <Globe
-            onMapCenter={center => setFlightCenter(previous => Math.abs(previous[0] - center[0]) + Math.abs(previous[1] - center[1]) > 0.1 ? center : previous)}
-            markers={globeMarkers}
-            satellites={on.has("Satellites · TLE") ? satellites : []}
-            flat={flat}
-            zoom={zoom}
-            target={mapTarget}
-            mapView={mapView}
-            satelliteEnabled={satelliteEnabled}
-            satelliteSource={satelliteSource}
-            cellTowers={cellTowers}
-            cellTowersEnabled={on.has("Cell towers · OpenCellID")}
-            onSelectCellTower={setSelectedCellTower}
-            streetViewMode={streetViewMode}
-            onStreetViewClick={coords => {
-              setStreetViewTarget(coords);
-              setStreetViewMode(false);
-            }}
-            onSelect={(marker, satellite) => {
-              if (marker.flight) { setSelectedAircraft(marker.flight); return; }
-              const cam = globalCameras.find(c => c.name === marker.label);
-              if (cam) {
-                setActiveCamera(cam);
-                return;
-              }
-              const event = conflictPoints.find(e => e.label === marker.label);
-              if (event) {
-                setDossier(event);
-                return;
-              }
-              setSelectedPoint({ marker, satellite });
-            }}
-          />
-        </div>
-        {!rightPanelOpen && <nav className="floating-option-rail" aria-label="Dashboard options">{rightPanelOptions.map(([label, Icon]) => <button key={label} title={label} aria-label={label} onClick={() => openTab(label)} className={tab === label ? "active" : ""}><Icon size={19} strokeWidth={1.6} /></button>)}</nav>}
-        {showLiveMapFeed && <div className="live-map-feed overlay"><div className="panel-title"><span>LIVE NOW</span><div className="live-map-feed-actions"><small className={liveNowState === "live" ? "feed live" : "feed sample"}>{liveNowState === "live" ? "LIVE FEEDS" : liveNowState.toUpperCase()}</small><button onClick={() => setShowLiveMapFeed(false)} aria-label="Close live news column">×</button></div></div>{liveNowItems.slice(0, 5).map(item => {
-          const isVideo = /youtube|youtu\.be|vimeo|video/i.test(item.link || "");
-          return <a className="live-map-feed-item" key={item.id} href={item.link} target="_blank" rel="noreferrer">{item.image_url ? <img src={item.image_url} alt="" loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} /> : <span className="news-thumb-placeholder">NEWS</span>}<div><strong>{item.title}</strong><span>{isVideo ? "VIDEO" : item.source} · {new Date(item.published).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div></a>;
-        })}{liveNowItems.length === 0 && <p className="live-map-empty">Waiting for current events…</p>}</div>}
-        {!showLiveMapFeed && <button className="live-map-feed-restore overlay" onClick={() => setShowLiveMapFeed(true)}>LIVE NOW</button>}
-        <div className="map-count overlay"><span className="live"><i /> {(globeMarkers.length + earthquakes + (flightCount ?? 0)).toLocaleString()} SIGNALS</span><small>LIVE INGEST · GOOGLE NEWS · USGS · NWS · NASA · ADS-B</small></div>
-        <div className="alert-ticker"><span>BREAKING</span><div>⚠ 4 origins corroborate increased disruption near Bab el-Mandeb <b>·</b> USGS M5.7 east of Honshu <b>·</b> Elevated GPS interference across eastern Mediterranean</div></div>
-      </section>
-      <aside className={`right-panel panel ${rightPanelOpen ? "open" : "collapsed"} ${mobileDrawer === "intel" ? "mobile-open" : ""}`}>
-        <div className="mobile-panel-header">
-          <div className="mobile-panel-title">
-            <Radar size={14} />
-            <span>GLOBAL INTEL & FEEDS</span>
-          </div>
-          <button className="mobile-panel-close-btn" onClick={() => { setRightPanelOpen(false); setMobileDrawer(null); }} aria-label="Close intel">
-            <X size={16} />
-          </button>
-        </div>
-        <nav className="side-tabs">{rightPanelOptions.map(([label, Icon]) => <button key={label} title={label} aria-label={label} onClick={() => openTab(label)} className={tab === label ? "active" : ""}><span aria-hidden="true"><Icon size={18} strokeWidth={1.6} /></span><b>{label}</b></button>)}</nav>
-        <div className="right-panel-content">
-        <div className="selected-panel-header"><div>{(() => { const [, SelectedIcon] = rightPanelOptions.find(([label]) => label === tab) || rightPanelOptions[0]; return <SelectedIcon size={17} strokeWidth={1.7} />; })()}<strong>{tab}</strong></div><button onClick={() => { setRightPanelOpen(false); setMobileDrawer(null); }} aria-label="Close selected option">×</button></div>
-        {tab === "Signals" && <><div className="section-head"><span>TOP SIGNALS</span><small>Fewer alerts. Real ones.</small></div>{signals.map(s => <article className="signal" key={s[0]}><i className={s[3]} /><div><h3>{s[0]}</h3><p>{s[1]} <b>·</b> {s[2]}</p></div></article>)}<div className="correlation"><p>AI CORRELATION ENGINE</p><h3>RISK + FLOW + MACRO</h3><span>Red Sea disruption is repricing shipping risk; Brent response remains contained while passage volume recovers.</span><button>Open evidence →</button></div></>}
-        {tab === "Live Now" && <div className="live-now-panel"><div className="section-head"><span>LIVE NOW · GOOGLE NEWS & VERIFIED</span><small className={liveNowState === "live" ? "feed live" : "feed sample"}>{liveNowState === "live" ? "REFRESHING EVERY 90S" : liveNowState === "loading" ? "LOADING" : "FALLBACK DATA"}</small></div><form className="live-news-filters" onSubmit={event => { event.preventDefault(); setLiveNewsSearch(liveNewsSearch.trim()); }}><input value={liveNewsSearch} onChange={event => setLiveNewsSearch(event.target.value)} placeholder="Search global news..." aria-label="Search live global news" /><select value={liveNewsCountry} onChange={event => setLiveNewsCountry(event.target.value)} aria-label="Filter news by country"><option value="WORLD">World</option><option value="US">United States</option><option value="GB">United Kingdom</option><option value="IN">India</option><option value="CA">Canada</option><option value="AU">Australia</option><option value="DE">Germany</option><option value="FR">France</option><option value="JP">Japan</option><option value="BR">Brazil</option><option value="ZA">South Africa</option></select><button type="submit">SEARCH</button></form><p className="news-scope">Free global news index · {liveNewsCountry === "WORLD" ? "all countries" : liveNewsCountry} · newest monitored reports first</p>{liveNowItems.length === 0 && <p className="news-empty">{liveNowState === "loading" ? "Loading trusted global news…" : "No matching reports found."}</p>}{liveNowItems.map(item => <a className="newsitem live-now-item" key={item.id} href={item.link} target="_blank" rel="noreferrer">{item.image_url ? <img className="live-news-thumb" src={item.image_url} alt="" loading="lazy" onError={event => { event.currentTarget.style.display = "none"; }} /> : <span className="live-news-thumb news-thumb-placeholder">NEWS</span>}<div><h3>{item.title}</h3><p>{item.source} <b>·</b> {new Date(item.published).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p></div></a>)}</div>}
-        {tab === "AI Brief" && <><div className="section-head"><span>AI INSIGHTS</span><small className={newsState === "ok" ? "feed live" : "feed sample"}>{newsState === "ok" ? "LIVE INPUTS" : "SAMPLE INPUTS"}</small></div>{aiInsights.map(item => <article className="ai-insight" key={item.label}><small>{item.label}</small><h3>{item.value}</h3><p>{item.detail}</p></article>)}<div className="open-source-panel"><p>FREE OPEN SOURCES</p>{openSources.map(source => <div key={source[0]}><strong>{source[0]}</strong><span>{source[1]}</span></div>)}</div><div className="correlation"><p>COUNTRY BRIEFING MODEL</p><h3>NEWS + LAYERS + MARKETS</h3><span>This is a browser-side intelligence synthesis using active map layers and current feed state. Connect a server LLM later for sourced long-form briefs.</span></div></>}
-        {tab === "Markets" && <div className="markets-workspace"><form className="market-search" onSubmit={e => { e.preventDefault(); setMarketQuery(marketQuery.trim()); }}><input value={marketQuery} onChange={e => setMarketQuery(e.target.value)} placeholder="Search market impact…" aria-label="Search market impact" /><button type="submit">SEARCH</button></form><div className="market-summary">UP <b>7 / 11</b><span>BEST <b>CU +1.5%</b></span></div><div className="market-chart-head"><span>{marketSymbol} · INTRADAY</span><small>LIVE INDICATIVE</small></div><MarketChart positive={marketSymbol !== "EUR / USD"} />{marketRows.map(m => <button className="market" key={m[0]} onClick={() => setMarketSymbol(m[0])}><div><strong>{m[0]}</strong><small>{m[1]}</small></div><b className="ticking" key={`${m[0]}-${refresh}`}>{m[2]}</b><em className={m[4]}>{m[3]}</em><Spark up={m[4] === "up"} /></button>)}<div className="market-impact"><div className="section-head"><span>MARKET IMPACT</span><small>{marketNewsState === "loading" ? "SEARCHING" : marketNewsState === "ok" ? "LIVE FEEDS" : "READY"}</small></div>{marketNews.length ? marketNews.map(item => <a className="market-news market-news-with-thumb" key={item.url} href={item.url} target="_blank" rel="noreferrer">{item.imageUrl && <img className="market-news-thumb" src={item.imageUrl} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = "none"; }} />}<div><strong>{item.title}</strong><small>{item.domain} · {item.time}</small></div></a>) : <p>{marketNewsState === "empty" ? "No matching market headlines found." : "Search a company, index, commodity, or country to see live impact."}</p>}</div></div>}
-        {tab === "Aviation" && <FlightPanel flights={aircraft} status={flightStatus} reportedCounts={reportedFlightCounts} onSelect={setSelectedAircraft} />}
-        {tab === "Cameras" && <CameraPanel cameras={globalCameras} status={cameraStatus} onSelect={setActiveCamera} />}
-        {tab === "Weather" && <WeatherPanel snapshot={weatherSnapshot} state={weatherState} />}
-        {tab === "Chokepoints" && <><div className="section-head"><span>MARITIME CHOKEPOINTS</span><small>13 TRACKED</small></div>{chokepoints.map(c => <div className="choke" key={c[0]}><div><strong>{c[0]}</strong><small>{c[1]} AIS VESSELS</small></div><b>{c[2]}</b><div className="riskbar"><i style={{ width: `${c[2]}%` }} /></div></div>)}</>}
-        {tab === "News" && <><div className="news-tab-head"><div className="section-head"><span>LIVE NEWS · GOOGLE NEWS & VERIFIED</span><small className={newsState === "ok" ? "feed live" : "feed sample"}>{newsState === "ok" ? "LIVE" : newsState === "loading" ? "…" : "FALLBACK"}</small></div><form className="global-news-search" onSubmit={event => { event.preventDefault(); setNewsSearch(newsSearch.trim()); }}><input value={newsSearch} onChange={event => setNewsSearch(event.target.value)} placeholder="Search Google News & global feeds..." aria-label="Search worldwide news" /><button type="submit">SEARCH</button>{newsSearch && <button type="button" onClick={() => setNewsSearch("")} aria-label="Clear worldwide news search">×</button>}</form></div><p className="news-scope">SCOPE {newsQuery} · WORLDWIDE SOURCES</p>{news.length === 0 && <p className="news-empty">{newsState === "loading" ? "Scanning Google News & verified sources…" : "No live articles for this scope right now."}</p>}{news.map(n => <a className="newsitem newsitem-with-thumb" key={n.id || n.url} href={n.url} target="_blank" rel="noreferrer">{n.imageUrl ? <img className="newsitem-thumb" src={n.imageUrl} alt="" loading="lazy" onError={event => { const target = event.currentTarget; if (n.sourceDomain && !target.src.includes("gstatic.com")) { target.src = `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://${n.sourceDomain}&size=128`; } else { target.style.display = "none"; } }} /> : <span className="newsitem-thumb news-thumb-placeholder">NEWS</span>}<div className="newsitem-body"><h3>{n.title}</h3><p>{n.source || n.sourceDomain} <b>·</b> {n.time}</p></div></a>)}</>}
-
-        <div style={{ marginTop: '20px', borderTop: '1px solid var(--bronze)', paddingTop: '10px' }}>
-          <LiveTV channel={channel} setChannel={setChannel} lens={lens} />
-        </div>
-        </div>
-      </aside>
-    </section>
-    {mobileDrawer && (
-      <div className="mobile-backdrop" onClick={() => setMobileDrawer(null)} />
-    )}
-
-    {mobileDrawer === "menu" && (
-      <div className="mobile-options-sheet">
-        <div className="mobile-options-header">
-          <div className="brand"><img src={vigilLogo} alt="VIGIL" /><span>VIGIL MENU</span></div>
-          <button className="mobile-panel-close-btn" onClick={() => setMobileDrawer(null)} aria-label="Close menu">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="mobile-options-body">
-          <div className="mobile-options-section">
-            <span className="mobile-options-label">INTELLIGENCE LENS</span>
-            <div className="mobile-lenses-grid">
-              {["World", "Tech", "Finance", "Commodity", "Energy", "Calm"].map(x => (
-                <button
-                  key={x}
-                  onClick={() => { setLens(x); setMobileDrawer(null); }}
-                  className={`mobile-lens-btn ${lens === x ? "active" : ""}`}
-                >
-                  {x}
-                </button>
+          <div className="glass-alert-ticker-marquee">
+            <div>
+              {tickerAlerts.map((item, index) => (
+                <span key={`${item}-${index}`} style={{ marginRight: 28 }}>
+                  <b style={{ color: "#38bdf8", marginRight: 6 }}>●</b>
+                  {item}
+                </span>
               ))}
             </div>
           </div>
+        </div>
 
-          <div className="mobile-options-section">
-            <span className="mobile-options-label">QUICK LAUNCH & TOOLS</span>
-            <div className="mobile-tools-grid">
+      </section>
+
+      {/* 3. RIGHT PANEL: Global Intel & Feeds */}
+      <aside className={`glass-right-panel ${rightPanelOpen ? "" : "collapsed"}`}>
+        {rightPanelOpen ? (
+          <>
+            <div className="glass-panel-header" style={{ padding: "12px 14px 6px" }}>
+              <div className="glass-panel-title">
+                <Radar size={14} color="#38bdf8" />
+                <span>GLOBAL INTEL & FEEDS</span>
+              </div>
               <button
-                className="mobile-tool-btn"
-                onClick={() => { setShowNewsPanel(true); setMobileDrawer(null); }}
+                className="glass-select-btn"
+                onClick={() => setRightPanelOpen(false)}
+                title="Collapse panel"
               >
-                <span className="mobile-tool-icon">🌍</span>
-                <div>
-                  <strong>Global News Desk</strong>
-                  <small>Multilingual live channels</small>
-                </div>
-              </button>
-              <button
-                className="mobile-tool-btn"
-                onClick={() => { setShowSatelliteViewer(true); setMobileDrawer(null); }}
-              >
-                <span className="mobile-tool-icon">🛰️</span>
-                <div>
-                  <strong>Satellites Tracker</strong>
-                  <small>TLE orbit visualizer</small>
-                </div>
-              </button>
-              <button
-                className={`mobile-tool-btn ${streetViewMode ? "active" : ""}`}
-                onClick={() => {
-                  setStreetViewTarget(flightCenter || [77.42682, 23.1776]);
-                  setStreetViewMode(false);
-                  setMobileDrawer(null);
-                }}
-              >
-                <span className="mobile-tool-icon"><Navigation size={15} /></span>
-                <div>
-                  <strong>360° Street View</strong>
-                  <small>Open current map center</small>
-                </div>
-              </button>
-              <button
-                className="mobile-tool-btn"
-                onClick={() => { setCommand(true); setMobileDrawer(null); }}
-              >
-                <span className="mobile-tool-icon"><Search size={15} /></span>
-                <div>
-                  <strong>Command & Search</strong>
-                  <small>Hotspots, bases, layers</small>
-                </div>
+                ✕
               </button>
             </div>
-          </div>
 
-          <div className="mobile-options-section">
-            <span className="mobile-options-label">MAP VIEW & THEME</span>
-            <div className="mobile-settings-row">
-              <button
-                className={`mobile-setting-btn ${!flat ? "active" : ""}`}
-                onClick={() => { setFlat(false); setMobileDrawer(null); }}
-              >
-                ◎ 3D Globe
-              </button>
-              <button
-                className={`mobile-setting-btn ${flat ? "active" : ""}`}
-                onClick={() => { setFlat(true); setMobileDrawer(null); }}
-              >
-                ◫ 2D Mercator
-              </button>
-              <button
-                className="mobile-setting-btn"
-                onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
-              >
-                {theme === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode"}
-              </button>
+            {/* Horizontal Tabs Switcher */}
+            <div className="glass-tab-bar">
+              {rightPanelOptions.map(([label, Icon]) => (
+                <button
+                  key={label}
+                  className={`glass-tab-btn ${tab === label ? "active" : ""}`}
+                  onClick={() => openTab(label)}
+                  title={label}
+                >
+                  <Icon size={12} style={{ marginRight: 4, verticalAlign: -1 }} />
+                  {label}
+                </button>
+              ))}
             </div>
-          </div>
 
-          <div className="mobile-options-section">
-            <span className="mobile-options-label">LIVE BROADCAST</span>
-            <LiveTV channel={channel} setChannel={setChannel} lens={lens} />
-          </div>
+            {/* Tab Panel Content */}
+            <div className="glass-panel-content">
+
+          {tab === "Signals" && (
+            <>
+              <div className="section-head"><span>OBSERVED UPDATES</span><small>USGS + published news</small></div>
+              {signals.length === 0 && <p className="news-empty">Waiting for verified feed updates. No sample alerts are shown.</p>}
+              {signals.map((s) => (
+                <article className="signal" key={s[0]}>
+                  <i className={s[3]} />
+                  <div><h3>{s[0]}</h3><p>{s[1]} <b>·</b> {s[2]}</p></div>
+                </article>
+              ))}
+              <div className="correlation">
+                <p>DATA TRANSPARENCY</p>
+                <h3>Source first</h3>
+                <span>Updates appear only when a connected publisher or sensor feed returns data. Empty feeds remain empty.</span>
+              </div>
+            </>
+          )}
+
+          {tab === "Live Now" && (
+            <div className="live-now-panel">
+              <div className="section-head"><span>LIVE NEWS</span><small className={liveNowState === "live" ? "feed live" : "feed sample"}>{liveNowState === "live" ? "REFRESHING EVERY 90S" : liveNowState === "loading" ? "LOADING" : "UNAVAILABLE"}</small></div>
+              <form className="live-news-filters" onSubmit={(event) => { event.preventDefault(); setLiveNewsSearch(liveNewsSearch.trim()); }}>
+                <input value={liveNewsSearch} onChange={(event) => setLiveNewsSearch(event.target.value)} placeholder="Search global news..." aria-label="Search live global news" />
+                <select value={liveNewsCountry} onChange={(event) => setLiveNewsCountry(event.target.value)} aria-label="Filter news by country">
+                  <option value="WORLD">World</option>
+                  <option value="US">United States</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="IN">India</option>
+                  <option value="CA">Canada</option>
+                  <option value="AU">Australia</option>
+                  <option value="DE">Germany</option>
+                  <option value="FR">France</option>
+                  <option value="JP">Japan</option>
+                  <option value="BR">Brazil</option>
+                  <option value="ZA">South Africa</option>
+                </select>
+                <button type="submit">SEARCH</button>
+              </form>
+              <p className="news-scope">Free global news index · {liveNewsCountry === "WORLD" ? "all countries" : liveNewsCountry} · newest monitored reports first</p>
+              {liveNowItems.length === 0 && <p className="news-empty">{liveNowState === "loading" ? "Loading trusted global news…" : "No matching reports found."}</p>}
+              {liveNowItems.map((item) => (
+                <a className="newsitem live-now-item" key={item.id} href={item.link} target="_blank" rel="noreferrer">
+                  {item.image_url ? (
+                    <img className="live-news-thumb" src={item.image_url} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+                  ) : (
+                    <span className="live-news-thumb news-thumb-placeholder">NEWS</span>
+                  )}
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.source} <b>·</b> {item.published ? new Date(item.published).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "time unavailable"}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {tab === "Feed Brief" && (
+            <>
+              <div className="section-head"><span>FEED BRIEF</span><small className={newsState === "ok" ? "feed live" : "feed sample"}>{newsState === "ok" ? "LIVE INPUTS" : "PARTIAL DATA"}</small></div>
+              {aiInsights.map((item) => (
+                <article className="ai-insight" key={item.label}>
+                  <small>{item.label}</small>
+                  <h3>{item.value}</h3>
+                  <p>{item.detail}</p>
+                </article>
+              ))}
+              <div className="open-source-panel">
+                <p>FREE OPEN SOURCES</p>
+                {openSources.map((source) => (
+                  <div key={source[0]}>
+                    <strong>{source[0]}</strong>
+                    <span>{source[1]}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          {tab === "Markets" && (
+            <div className="markets-workspace">
+              <form className="market-search" onSubmit={(e) => { e.preventDefault(); setMarketQuery(marketQuery.trim()); }}>
+                <input value={marketQuery} onChange={(e) => setMarketQuery(e.target.value)} placeholder="Search market impact…" aria-label="Search market impact" />
+                <button type="submit">SEARCH</button>
+              </form>
+              <div className="section-head"><span>BITCOIN SPOT PRICE</span><small>COINGECKO · 24H CHANGE</small></div>
+              {marketRows.length === 0 && <p className="news-empty">Market price feed unavailable. No cached quote is shown.</p>}
+              {marketRows.map((m) => (
+                <div className="market" key={m[0]}>
+                  <div><strong>{m[0]}</strong><small>{m[1]}</small></div>
+                  <b className="ticking">${m[2]}</b>
+                  <em className={m[4]}>{m[3]}</em>
+                </div>
+              ))}
+              {marketQuery.trim() && <div className="section-head"><span>RELATED PUBLISHED NEWS</span><small>{marketNewsState === "loading" ? "LOADING" : marketNewsState === "ok" ? "LIVE SOURCES" : "NO RESULTS"}</small></div>}
+              {marketQuery.trim() && marketNews.map(item => <a className="newsitem" key={item.url} href={item.url} target="_blank" rel="noreferrer"><div><h3>{item.title}</h3><p>{item.domain} · {item.time}</p></div></a>)}
+            </div>
+          )}
+
+          {tab === "Aviation" && (
+            <div>
+              <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--tactical-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "12px", fontWeight: 700 }}>OBSERVED AIRCRAFT</span>
+              </div>
+              <FlightPanel flights={aircraft} status={flightStatus} reportedCounts={reportedFlightCounts} onSelect={setSelectedAircraft} />
+            </div>
+          )}
+
+          {tab === "Cameras" && <CameraPanel cameras={globalCameras} status={cameraStatus} onSelect={setActiveCamera} />}
+          {tab === "Weather" && <WeatherPanel snapshot={weatherSnapshot} state={weatherState} />}
+          {tab === "Chokepoints" && (
+            <>
+              <div className="section-head"><span>MARITIME CHOKEPOINTS</span><small>REFERENCE LOCATIONS</small></div>
+              <p className="news-scope">AIS vessel telemetry is not connected. Select a waterway to locate it on the globe.</p>
+              {chokePoints.map((point) => (
+                <button className="choke" key={point.label} onClick={() => { setMapTarget([point.lon, point.lat]); setZoom(2.8); }}>
+                  <div><strong>{point.label}</strong><small>{point.lat.toFixed(2)}°, {point.lon.toFixed(2)}°</small></div>
+                </button>
+              ))}
+            </>
+          )}
+
+          {tab === "News" && (
+            <>
+              <div className="news-tab-head">
+                <div className="section-head"><span>PUBLISHED NEWS</span><small className={newsState === "ok" ? "feed live" : "feed sample"}>{newsState === "ok" ? "LIVE" : newsState === "loading" ? "…" : "UNAVAILABLE"}</small></div>
+                <form className="global-news-search" onSubmit={(event) => { event.preventDefault(); setNewsSearch(newsSearch.trim()); }}>
+                  <input value={newsSearch} onChange={(event) => setNewsSearch(event.target.value)} placeholder="Search Google News & global feeds..." aria-label="Search worldwide news" />
+                  <button type="submit">SEARCH</button>
+                  {newsSearch && <button type="button" onClick={() => setNewsSearch("")} aria-label="Clear worldwide news search">×</button>}
+                </form>
+              </div>
+              <p className="news-scope">SCOPE {newsQuery} · WORLDWIDE SOURCES</p>
+              {news.length === 0 && <p className="news-empty">{newsState === "loading" ? "Scanning Google News & verified sources…" : "No live articles for this scope right now."}</p>}
+              {news.map((n) => (
+                <a className="newsitem newsitem-with-thumb" key={n.id || n.url} href={n.url} target="_blank" rel="noreferrer">
+                  {n.imageUrl ? (
+                    <img className="newsitem-thumb" src={n.imageUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+                  ) : (
+                    <span className="newsitem-thumb news-thumb-placeholder">NEWS</span>
+                  )}
+                  <div className="newsitem-body">
+                    <h3>{n.title}</h3>
+                    <p>{n.source || n.sourceDomain} <b>·</b> {n.time}</p>
+                  </div>
+                </a>
+              ))}
+            </>
+          )}
+
+          {(tab === "News" || tab === "Live Now") && (
+            <div style={{ marginTop: "20px", borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "10px" }}>
+              <LiveTV channel={channel} setChannel={setChannel} lens={lens} />
+            </div>
+          )}
         </div>
+        </>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "12px 4px", gap: 10 }}>
+          <button
+            className="glass-select-btn"
+            onClick={() => setRightPanelOpen(true)}
+            title="Expand Intelligence Panel"
+            style={{ width: 36, height: 36, borderRadius: "50%", padding: 0, display: "grid", placeItems: "center" }}
+          >
+            <Radar size={16} />
+          </button>
+          {rightPanelOptions.slice(0, 6).map(([label, Icon]) => (
+            <button
+              key={label}
+              className="glass-select-btn"
+              onClick={() => {
+                openTab(label);
+                setRightPanelOpen(true);
+              }}
+              title={label}
+              style={{ width: 32, height: 32, borderRadius: "50%", padding: 0, display: "grid", placeItems: "center" }}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+        </div>
+      )}
+      </aside>
+
+    </div>
+
+    {/* Modern Glass Footer */}
+    <footer className="glass-footer">
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ color: "#34d399", display: "flex", alignItems: "center", gap: 6, fontWeight: 700 }}>
+          <i style={{ width: 6, height: 6, borderRadius: "50%", background: "#34d399", display: "inline-block", boxShadow: "0 0 8px #34d399" }} />
+          SYSTEMS ONLINE
+        </span>
+        <span style={{ color: "#64748b" }}>|</span>
+        <span>LATENCY 14MS</span>
+        <span style={{ color: "#64748b" }}>|</span>
+        <span>ESRI SATELLITE ENGINE</span>
+        <span style={{ color: "#64748b" }}>|</span>
+        <span style={{ color: "#38bdf8" }}>{is3dGlobe ? "CESIUM 3D ACTIVE" : "2D PROJECTION"}</span>
+      </div>
+
+      <div style={{ color: "#94a3b8", letterSpacing: "0.08em" }}>
+        VIGIL OSINT MONITOR · GOD'S EYE PROTOCOL
+      </div>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span>LAT/LNG: {mapTarget ? `${mapTarget[1].toFixed(2)}°, ${mapTarget[0].toFixed(2)}°` : "0.00°, 0.00°"}</span>
+        <span style={{ color: "#64748b" }}>|</span>
+        <span>ZOOM: {zoom}X</span>
+      </div>
+    </footer>
+
+    {/* Modals & Dialogs */}
+    {selectedAircraft && (
+      <AircraftDossier
+        key={selectedAircraft.icao24}
+        flight={selectedAircraft}
+        onClose={() => setSelectedAircraft(null)}
+        onLocate={(f) => {
+          if (hasPosition(f)) {
+            setIs3dGlobe(true);
+            setMapTarget([f.lng, f.lat]);
+            setZoom(2);
+          }
+        }}
+      />
+    )}
+    {selectedPoint && (
+      <PointDialog
+        point={selectedPoint.marker}
+        satellite={selectedPoint.satellite}
+        news={news}
+        onClose={() => setSelectedPoint(null)}
+      />
+    )}
+    {command && (
+      <Command
+        onClose={() => setCommand(false)}
+        onCountry={(x, lat, lng) => {
+          if (lat !== undefined && lng !== undefined) {
+            setIs3dGlobe(true);
+            setMapTarget([lng, lat]);
+            setCommand(false);
+            return;
+          }
+          setCommand(false);
+        }}
+      />
+    )}
+    {showNewsPanel && (
+      <div className="modal-overlay">
+        <NewsPanel onClose={() => setShowNewsPanel(false)} />
       </div>
     )}
-
-    <nav className="mobile-bottom-dock" aria-label="Mobile Navigation">
-      <button
-        className={`mobile-dock-btn ${mobileDrawer === "layers" ? "active" : ""}`}
-        onClick={() => setMobileDrawer(d => d === "layers" ? null : "layers")}
-      >
-        <Layers size={18} />
-        <span>Layers</span>
-        {satelliteEnabled && <span className="dock-badge-dot" />}
-      </button>
-
-      <button
-        className={`mobile-dock-btn ${mobileDrawer === "intel" ? "active" : ""}`}
-        onClick={() => {
-          setRightPanelOpen(true);
-          setMobileDrawer(d => d === "intel" ? null : "intel");
-        }}
-      >
-        <Radar size={18} />
-        <span>Intel</span>
-      </button>
-
-      <button
-        className={`mobile-dock-btn ${streetViewMode ? "active" : ""}`}
-        onClick={() => {
-          setStreetViewMode(m => !m);
-          setMobileDrawer(null);
-        }}
-      >
-        <Navigation size={18} />
-        <span>360°</span>
-      </button>
-
-      <button
-        className={`mobile-dock-btn ${showNewsPanel ? "active" : ""}`}
-        onClick={() => {
-          setShowNewsPanel(true);
-          setMobileDrawer(null);
-        }}
-      >
-        <AlertTriangle size={18} />
-        <span>News</span>
-      </button>
-
-      <button
-        className={`mobile-dock-btn ${mobileDrawer === "menu" ? "active" : ""}`}
-        onClick={() => setMobileDrawer(d => d === "menu" ? null : "menu")}
-      >
-        <Menu size={18} />
-        <span>Menu</span>
-      </button>
-    </nav>
-
-    <footer><span><i /> CONNECTED · STREAM SYNCHRONIZED</span><span>7 INDEPENDENT ALERT ORIGINS · NO SIGNUP · LOADS IN SECONDS</span><span>◌ DATA: GLOBAL PROXY · USGS · GDELT · ADS-B · AISSTREAM · CISA</span></footer>
-    {dossier && <EventPanel event={dossier} onClose={() => setDossier(null)} />}
-    {selectedAircraft && <AircraftDossier key={selectedAircraft.icao24} flight={selectedAircraft} onClose={() => setSelectedAircraft(null)} onLocate={f => { if (hasPosition(f)) { setMapTarget([f.lng, f.lat]); setZoom(2); } }} />}
-    {selectedPoint && <PointDialog point={selectedPoint.marker} satellite={selectedPoint.satellite} news={news} onClose={() => setSelectedPoint(null)} />}
-    {command && <Command onClose={() => setCommand(false)} onCountry={(x, lat, lng) => { 
-      if (lat !== undefined && lng !== undefined) {
-        setFlat(false);
-        setMapTarget([lng, lat]);
-        setCommand(false);
-        return;
-      }
-      const event = conflictPoints.find(e => e.label === x);
-      if (event) { setDossier(event); setCommand(false); }
-    }} />}
-    {showNewsPanel && <div className="modal-overlay"><NewsPanel onClose={() => setShowNewsPanel(false)} /></div>}
-    {showSatelliteViewer && <div className="modal-overlay"><SatelliteViewer onClose={() => setShowSatelliteViewer(false)} /></div>}
-    {activeCamera && <CameraViewer camera={activeCamera} onClose={() => setActiveCamera(null)} onLocate={(lat, lng) => {
-      setMapTarget([lng, lat]);
-      setActiveCamera(null);
-      setFlat(false);
-      setZoom(2);
-    }} />}
-    {selectedCellTower && (
-      <div className="celltower-inspector-modal">
-        <div className="celltower-inspector-header">
-          <div>
-            <h3>{selectedCellTower.operator}</h3>
-            <span className={`celltower-tech-badge ${selectedCellTower.radio === "5G NR" ? "nr5g" : selectedCellTower.radio === "LTE" ? "lte" : "umts"}`}>
-              {selectedCellTower.radio} TOWER
-            </span>
-          </div>
-          <button onClick={() => setSelectedCellTower(null)} style={{ background: "none", border: "none", color: "#8f8573", cursor: "pointer", fontSize: 18 }}>×</button>
-        </div>
-        <p style={{ margin: "4px 0 8px", fontSize: 11, color: "#9c9281" }}>
-          Source: {selectedCellTower.source} · Signal Range: ~{(selectedCellTower.rangeMeters / 1000).toFixed(1)} km
-        </p>
-        <div className="celltower-specs-grid">
-          <div className="celltower-specs-item"><small>Tower ID</small><strong>{selectedCellTower.id}</strong></div>
-          <div className="celltower-specs-item"><small>Cell ID / LAC</small><strong>{selectedCellTower.cellId} / {selectedCellTower.lac}</strong></div>
-          <div className="celltower-specs-item"><small>MCC / MNC</small><strong>{selectedCellTower.mcc} / {selectedCellTower.mnc}</strong></div>
-          <div className="celltower-specs-item"><small>Signal Strength</small><strong>{selectedCellTower.signalDbm || -75} dBm</strong></div>
-          <div className="celltower-specs-item"><small>Coordinates</small><strong>{selectedCellTower.lat.toFixed(4)}°, {selectedCellTower.lon.toFixed(4)}°</strong></div>
-          <div className="celltower-specs-item"><small>Structure Height</small><strong>{selectedCellTower.height || "35m"}</strong></div>
-        </div>
-        <div style={{ display: "flex", gap: 10, marginTop: 10, fontSize: 10 }}>
-          <a href={`https://www.opencellid.org/#zoom=16&lat=${selectedCellTower.lat}&lon=${selectedCellTower.lon}`} target="_blank" rel="noreferrer" style={{ color: "var(--gold)", textDecoration: "none" }}>Open on OpenCellID ↗</a>
-          <a href={`https://www.openstreetmap.org/?mlat=${selectedCellTower.lat}&mlon=${selectedCellTower.lon}#map=18/${selectedCellTower.lat}/${selectedCellTower.lon}`} target="_blank" rel="noreferrer" style={{ color: "var(--gold)", textDecoration: "none" }}>OSM Node ↗</a>
-          <button onClick={() => { setStreetViewTarget([selectedCellTower.lon, selectedCellTower.lat]); setSelectedCellTower(null); }} style={{ marginLeft: "auto", background: "#241d13", border: "1px solid #4a3b22", color: "#f4c430", padding: "2px 8px", borderRadius: 3, cursor: "pointer" }}>Street View 👁</button>
-        </div>
+    {showSatelliteViewer && (
+      <div className="modal-overlay">
+        <LiveSatelliteCatalog
+          satellites={satellites}
+          sourceState={feedStatus["Satellites · TLE"]}
+          onClose={() => setShowSatelliteViewer(false)}
+          onLocate={(satellite) => {
+            setIs3dGlobe(true);
+            setMapTarget([satellite.lng, satellite.lat]);
+            setZoom(3);
+            setShowSatelliteViewer(false);
+          }}
+        />
       </div>
     )}
-    {streetViewTarget && (
-      <StreetViewModal
-        target={streetViewTarget}
-        onClose={() => setStreetViewTarget(null)}
-        onNavigate={coords => {
-          setMapTarget(coords);
-          setStreetViewTarget(coords);
+    {activeCamera && (
+      <CameraViewer
+        camera={activeCamera}
+        onClose={() => setActiveCamera(null)}
+        onLocate={(lat, lng) => {
+          setIs3dGlobe(true);
+          setMapTarget([lng, lat]);
+          setActiveCamera(null);
+          setZoom(2);
         }}
+      />
+    )}
+    {showPowerUpModal && (
+      <PowerUpModal
+        isOpen={showPowerUpModal}
+        onClose={() => setShowPowerUpModal(false)}
       />
     )}
   </main>;
@@ -1622,9 +1695,29 @@ const tvChannels: { name: string; id: string; tag: string }[] = [
   { name: "ABC News", id: "UCBi2mrWuNuyYy4gbM6fU18Q", tag: "US" },
 ];
 
+function LiveSatelliteCatalog({ satellites, sourceState, onClose, onLocate }: {
+  satellites: GlobalSatellite[];
+  sourceState?: "live" | "sample";
+  onClose: () => void;
+  onLocate: (satellite: GlobalSatellite) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const results = useMemo(() => satellites.filter(satellite =>
+    `${satellite.name} ${satellite.noradId} ${satellite.category}`.toLowerCase().includes(query.toLowerCase().trim()),
+  ).slice(0, 80), [satellites, query]);
+  return <section className="live-satellite-catalog" role="dialog" aria-modal="true" aria-label="Satellite catalog">
+    <header><div><small>LIVE ORBITAL DATA</small><h2>Satellite catalog</h2><p>{sourceState === "live" ? `${satellites.length.toLocaleString()} ${satellites.length === 1 ? "position" : "positions"} from the connected orbital feed` : "Satellite feed unavailable. No generated positions are shown."}</p></div><button onClick={onClose} aria-label="Close satellite catalog">×</button></header>
+    <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search satellite name, NORAD ID, or category" aria-label="Search satellites" />
+    <div className="live-satellite-list">
+      {results.map(satellite => <button key={`${satellite.noradId}-${satellite.name}`} onClick={() => onLocate(satellite)}><span><strong>{satellite.name}</strong><small>NORAD {satellite.noradId} · {satellite.category}</small></span><span>{Math.round(satellite.alt).toLocaleString()} km <b>↗</b></span></button>)}
+      {results.length === 0 && <p>No satellite positions match this search or the feed is unavailable.</p>}
+    </div>
+  </section>;
+}
+
 function LiveTV({ channel, setChannel, lens }: { channel: number; setChannel: (n: number) => void; lens: string }) {
   const c = tvChannels[channel] ?? tvChannels[0];
-  const [embedMode, setEmbedMode] = useState<"live" | "search">("live");
+  const [embedMode, setEmbedMode] = useState<"live" | "search">("search");
   const isIndian = c.tag.includes("INDIA");
   useEffect(() => {
     setEmbedMode("live");
@@ -1642,6 +1735,7 @@ function LiveTV({ channel, setChannel, lens }: { channel: number; setChannel: (n
         key={c.id}
         title={`${c.name} live broadcast`}
         src={embedSrc}
+        loading="lazy"
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
       />
@@ -1656,25 +1750,21 @@ function LiveTV({ channel, setChannel, lens }: { channel: number; setChannel: (n
 }
 
 function LayerRow({ layer, status, onToggle }: { layer: Layer; status?: "live" | "sample"; onToggle: () => void }) {
-  const rawCount = layer.count;
-  const fallback = LAYER_BASELINES[layer.label] || "12";
-  const displayCount = (rawCount && rawCount !== "0" && rawCount !== "" && rawCount !== "undefined")
-    ? rawCount
-    : fallback;
+  const displayCount = layer.count || "—";
   return (
     <button
-      className={layer.active ? "layer-row active" : "layer-row"}
+      className={`glass-layer-row ${layer.active ? "active" : ""}`}
       onClick={onToggle}
       aria-pressed={layer.active}
       title={`${layer.label}: ${displayCount}`}
     >
-      <i className="layer-dot" style={{ backgroundColor: KIND_COLOR[layer.kind] }} />
-      <span className={layer.active ? "toggle on" : "toggle"}><i /></span>
-      <span className="layer-name">
-        <span className="layer-label-text">{layer.label}</span>
-        {status === "live" && layer.active && <em className="feed live">LIVE</em>}
+      <i className="glass-layer-dot" style={{ backgroundColor: KIND_COLOR[layer.kind] || "#38bdf8" }} />
+      <span className={`glass-toggle ${layer.active ? "on" : ""}`}><i /></span>
+      <span className="glass-layer-name">
+        <span className="glass-layer-label-text">{layer.label}</span>
+        {layer.active && (layer.label === "Submarine cables" || layer.label === "Waterways") ? <em className="glass-live-feed-pill">REF</em> : status === "live" && layer.active && <em className="glass-live-feed-pill">LIVE</em>}
       </span>
-      <b className="layer-count-badge">{displayCount}</b>
+      <b className="glass-layer-count-badge">{displayCount}</b>
     </button>
   );
 }
@@ -1687,6 +1777,10 @@ function PointDialog({ point, satellite, news, onClose }: { point: GeoMarker; sa
     let live = true;
     setImageUrl(null);
     setImageLoading(true);
+    if (!point.flight) {
+      setImageLoading(false);
+      return;
+    }
     const searchTerms = point.flight
       ? [point.flight.model, point.flight.type, point.flight.registration, point.flight.airline_code].filter(Boolean)
       : [point.label.replace(/[·,].*$/, "").trim()];
@@ -1717,7 +1811,7 @@ function PointDialog({ point, satellite, news, onClose }: { point: GeoMarker; sa
     <div className="point-type"><i style={{ backgroundColor: KIND_COLOR[point.kind] }} />{point.kind.toUpperCase()} · {point.lat.toFixed(3)}°, {point.lon.toFixed(3)}°</div>
     <p className="point-detail">{point.detail || "No additional detail is available for this point."}</p>
     {point.flight && <div className="aircraft-dossier"><div className="aircraft-dossier-title"><span>✈ AIRCRAFT TELEMETRY</span><small>{point.flight.grounded ? "GROUNDED" : "AIRBORNE"}</small></div><div className="aircraft-dossier-grid"><div><span>CALLSIGN</span><strong>{point.flight.callsign || "—"}</strong></div><div><span>ICAO24</span><strong>{point.flight.icao24 || "—"}</strong></div><div><span>OPERATOR</span><strong>{point.flight.airline_code || "Unknown"}</strong></div><div><span>REGISTRATION</span><strong>{point.flight.registration || "—"}</strong></div><div><span>AIRCRAFT</span><strong>{point.flight.model || point.flight.type || "Unknown"}</strong></div><div><span>CATEGORY</span><strong>{point.flight.category || point.flight.aircraft_category || "—"}</strong></div><div><span>ALTITUDE</span><strong>{Number.isFinite(point.flight.alt) ? `${Math.round(point.flight.alt).toLocaleString()} m` : "—"}</strong></div><div><span>SPEED / HEADING</span><strong>{Number.isFinite(point.flight.speed_knots) ? `${Math.round(point.flight.speed_knots)} kt` : "—"} / {Number.isFinite(point.flight.heading) ? `${Math.round(point.flight.heading)}°` : "—"}</strong></div><div><span>SQUAWK</span><strong>{point.flight.squawk || "—"}</strong></div><div><span>POSITION</span><strong>{point.flight.lat.toFixed(4)}°, {point.flight.lng.toFixed(4)}°</strong></div></div></div>}
-    <div className="point-metadata"><div><span>LATITUDE</span><strong>{point.lat.toFixed(5)}°</strong></div><div><span>LONGITUDE</span><strong>{point.lon.toFixed(5)}°</strong></div><div><span>SOURCE</span><strong>{satellite ? "TLE CATALOGUE" : point.kind === "flight" ? "FLIGHT FEED" : "GLOBAL MONITOR"}</strong></div><div><span>STATUS</span><strong className="point-status-live">LIVE TRACKED</strong></div></div>
+    <div className="point-metadata"><div><span>LATITUDE</span><strong>{point.lat.toFixed(5)}°</strong></div><div><span>LONGITUDE</span><strong>{point.lon.toFixed(5)}°</strong></div><div><span>SOURCE</span><strong>{satellite ? "TLE CATALOGUE" : point.flight ? "FLIGHT FEED" : point.detail?.includes("USGS") ? "USGS" : point.detail?.includes("NASA EONET") ? "NASA EONET" : point.detail?.includes("NWS") ? "NWS" : "REFERENCE / FEED"}</strong></div><div><span>STATUS</span><strong className="point-status-live">{point.detail?.includes("Reference") ? "REFERENCE LOCATION" : "OBSERVED REPORT"}</strong></div></div>
     {satellite && <div className="point-stats"><span>ALTITUDE <b>{satellite.alt.toLocaleString()} km</b></span><span>MISSION <b>{satellite.mission || satellite.category}</b></span></div>}
     <div className="point-updates"><div className="point-updates-head"><span>LIVE UPDATES</span><small>{relatedNews.length ? "VERIFIED NEWS" : "NO MATCHED HEADLINES"}</small></div>{relatedNews.length ? relatedNews.map(item => <a key={item.id || item.url} href={item.url} target="_blank" rel="noreferrer" className="point-news-link">{item.imageUrl && <img className="point-news-thumb" src={item.imageUrl} alt="" onError={e => { e.currentTarget.style.display = "none"; }} />}<div><strong>{item.title}</strong><small>{item.source} · {item.time}</small></div></a>) : <p>Live headlines for this point are not available in the current feed.</p>}</div>
     <button className="point-locate" onClick={onClose}>Dismiss</button>
@@ -1851,10 +1945,15 @@ function Command({ onClose, onCountry }: { onClose: () => void; onCountry: (x: s
     return () => clearTimeout(timer);
   }, [query]);
 
-  const choices = ["Israel", "Ukraine", "Yemen", "Conflict events layer", "Maritime chokepoints panel", "Saved view · Eastern Mediterranean"].filter(x => x.toLowerCase().includes(query.toLowerCase())); 
+  const choices = [
+    { name: "New Delhi", lat: 28.6139, lon: 77.2090 },
+    { name: "London", lat: 51.5072, lon: -0.1276 },
+    { name: "New York", lat: 40.7128, lon: -74.0060 },
+    { name: "Tokyo", lat: 35.6762, lon: 139.6503 },
+  ].filter(place => place.name.toLowerCase().includes(query.toLowerCase()));
   
   return <div className="modal-backdrop command-backdrop" onClick={onClose}><section className="command-modal" onClick={e => e.stopPropagation()}><div><span>⌕</span><input autoFocus value={query} onChange={e => setQuery(e.target.value)} placeholder="Search commands, countries, layers…" /><kbd>ESC</kbd></div><p>QUICK JUMP</p>
-  {results.length > 0 ? results.map((r, i) => <button key={r.name + i} onClick={() => onCountry(r.name, r.lat, r.lon)}><small>{i + 1}</small>{r.name.substring(0, 45)}{r.name.length > 45 ? "..." : ""}<span>{r.type.toUpperCase()}</span></button>) : choices.map((x, i) => <button key={x} onClick={() => x === "Israel" || x === "Ukraine" || x === "Yemen" ? onCountry(x) : onClose()}><small>{i + 1}</small>{x}<span>{x.includes("layer") ? "LAYER" : x.includes("panel") ? "PANEL" : "COUNTRY"}</span></button>)}
+  {results.length > 0 ? results.map((r, i) => <button key={r.name + i} onClick={() => onCountry(r.name, r.lat, r.lon)}><small>{i + 1}</small>{r.name.substring(0, 45)}{r.name.length > 45 ? "..." : ""}<span>{r.type.toUpperCase()}</span></button>) : choices.map((place, i) => <button key={place.name} onClick={() => onCountry(place.name, place.lat, place.lon)}><small>{i + 1}</small>{place.name}<span>LOCATION</span></button>)}
   </section></div>; 
 }
 

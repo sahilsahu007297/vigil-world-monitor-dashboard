@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import * as satellite from 'satellite.js';
+import { satelliteCatalog } from './satellite-catalog.ts';
 
 const cache = new Map<string, { expires: number; body: string }>();
 let queue: Promise<unknown> = Promise.resolve();
@@ -101,11 +103,12 @@ function parseRssFeed(xml: string, defaultSource: string, defaultCategory: strin
 
     const pubDateStr = field('pubDate') || field('dc:date') || field('updated') || field('published') || '';
     const description = decodeXml(field('description')) || title;
+    const publishedAt = pubDateStr ? Date.parse(pubDateStr) : NaN;
     articles.push({
       id: `${source}-${link}-${index}`,
       title,
       link,
-      published: pubDateStr ? new Date(pubDateStr).toISOString() : new Date(Date.now() - index * 60000).toISOString(),
+      published: Number.isFinite(publishedAt) ? new Date(publishedAt).toISOString() : '',
       source,
       domain,
       description,
@@ -115,6 +118,143 @@ function parseRssFeed(xml: string, defaultSource: string, defaultCategory: strin
     });
   }
   return articles;
+}
+
+async function usgsEarthquakesHandler(_req: IncomingMessage, res: ServerResponse) {
+  const key = 'usgs:2.5-day';
+  const cached = cache.get(key);
+  if (cached && cached.expires > Date.now()) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(cached.body);
+    return;
+  }
+  const response = await fetch('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson', {
+    signal: AbortSignal.timeout(10000),
+    headers: { Accept: 'application/geo+json, application/json' },
+  });
+  if (!response.ok) throw new Error(`USGS returned ${response.status}`);
+  const feed = await response.json() as { metadata?: { generated?: number }; features?: Array<{ id?: string; properties?: Record<string, any>; geometry?: { coordinates?: number[] } }> };
+  if (!Array.isArray(feed.features)) throw new Error('USGS returned an invalid feed');
+  const earthquakes = feed.features.flatMap(feature => {
+    const [lng, lat, depth] = feature.geometry?.coordinates || [];
+    const p = feature.properties || {};
+    if (!Number.isFinite(lng) || !Number.isFinite(lat) || !Number.isFinite(p.mag) || !Number.isFinite(p.time)) return [];
+    return [{
+      id: feature.id || `${p.time}-${lat}-${lng}`,
+      lat, lng, depth: Number.isFinite(depth) ? depth : 0,
+      magnitude: p.mag,
+      place: typeof p.place === 'string' ? p.place : 'Location unavailable',
+      time: p.time,
+      url: typeof p.url === 'string' ? p.url : '',
+      tsunami: Number(p.tsunami) || 0,
+      type: typeof p.type === 'string' ? p.type : 'earthquake',
+      felt: Number.isFinite(p.felt) ? p.felt : null,
+      alert: typeof p.alert === 'string' ? p.alert : null,
+    }];
+  });
+  const body = JSON.stringify({ earthquakes, total: earthquakes.length, timestamp: new Date(feed.metadata?.generated || Date.now()).toISOString() });
+  cache.set(key, { body, expires: Date.now() + 30000 });
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=30');
+  res.end(body);
+}
+
+async function bitcoinPriceHandler(_req: IncomingMessage, res: ServerResponse) {
+  const key = 'market:btc';
+  const cached = cache.get(key);
+  if (cached && cached.expires > Date.now()) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(cached.body);
+    return;
+  }
+  const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true', {
+    signal: AbortSignal.timeout(10000),
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) throw new Error(`CoinGecko returned ${response.status}`);
+  const data = await response.json() as { bitcoin?: { usd?: number; usd_24h_change?: number } };
+  if (!Number.isFinite(data.bitcoin?.usd) || !Number.isFinite(data.bitcoin?.usd_24h_change)) throw new Error('CoinGecko returned an invalid quote');
+  const body = JSON.stringify(data);
+  cache.set(key, { body, expires: Date.now() + 60000 });
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.end(body);
+}
+
+async function publicGeoFeedHandler(kind: 'wildfires' | 'weather-alerts', res: ServerResponse) {
+  const cached = cache.get(`geo:${kind}`);
+  if (cached && cached.expires > Date.now()) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(cached.body);
+    return;
+  }
+  const upstream = kind === 'wildfires'
+    ? 'https://eonet.gsfc.nasa.gov/api/v3/events?category=wildfires&status=open&limit=200'
+    : 'https://api.weather.gov/alerts/active?status=actual&message_type=alert';
+  const response = await fetch(upstream, {
+    signal: AbortSignal.timeout(12000),
+    headers: { Accept: 'application/json', 'User-Agent': 'VIGIL dashboard (public data)' },
+  });
+  if (!response.ok) throw new Error(`${kind} provider returned ${response.status}`);
+  const data = await response.json() as { events?: unknown[]; features?: unknown[] };
+  if (kind === 'wildfires' ? !Array.isArray(data.events) : !Array.isArray(data.features)) throw new Error(`${kind} provider returned an invalid feed`);
+  const body = JSON.stringify(data);
+  cache.set(`geo:${kind}`, { body, expires: Date.now() + 60000 });
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.end(body);
+}
+
+async function issPositionHandler(_req: IncomingMessage, res: ServerResponse) {
+  const key = 'orbit:iss';
+  const cached = cache.get(key);
+  if (cached && cached.expires > Date.now()) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(cached.body);
+    return;
+  }
+  let position: { lat: number; lng: number; alt: number; timestamp: string };
+  try {
+    const tleKey = 'tle:iss';
+    let tle = cache.get(tleKey)?.body;
+    if (!tle || (cache.get(tleKey)?.expires || 0) <= Date.now()) {
+      const response = await fetch('https://celestrak.org/NORAD/elements/gp.php?CATNR=25544&FORMAT=TLE', {
+        signal: AbortSignal.timeout(12000),
+        headers: { Accept: 'text/plain' },
+      });
+      if (!response.ok) throw new Error(`CelesTrak returned ${response.status}`);
+      tle = await response.text();
+      cache.set(tleKey, { body: tle, expires: Date.now() + 6 * 60 * 60 * 1000 });
+    }
+    const lines = tle.split(/\r?\n/);
+    const line1 = lines.find(line => line.startsWith('1 '));
+    const line2 = lines.find(line => line.startsWith('2 '));
+    if (!line1 || !line2) throw new Error('CelesTrak TLE incomplete');
+    const now = new Date();
+    const state = satellite.propagate(satellite.twoline2satrec(line1, line2), now);
+    if (!state?.position || typeof state.position === 'boolean') throw new Error('ISS orbit propagation failed');
+    const geo = satellite.eciToGeodetic(state.position, satellite.gstime(now));
+    position = { lat: satellite.degreesLat(geo.latitude), lng: satellite.degreesLong(geo.longitude), alt: geo.height, timestamp: now.toISOString() };
+  } catch {
+    const response = await fetch('https://api.wheretheiss.at/v1/satellites/25544', {
+      signal: AbortSignal.timeout(8000),
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) throw new Error(`ISS provider returned ${response.status}`);
+    const iss = await response.json() as { latitude?: number; longitude?: number; altitude?: number; timestamp?: number };
+    if (!Number.isFinite(iss.latitude) || !Number.isFinite(iss.longitude) || !Number.isFinite(iss.altitude)) throw new Error('ISS provider returned invalid position');
+    position = { lat: iss.latitude!, lng: iss.longitude!, alt: iss.altitude!, timestamp: iss.timestamp ? new Date(iss.timestamp * 1000).toISOString() : '' };
+  }
+  const body = JSON.stringify({
+    satellites: [{ name: 'ISS (ZARYA)', lat: position.lat, lng: position.lng, alt: position.alt, mission: 'International Space Station', color: '#e9c5ff', category: 'station', noradId: '25544' }],
+    total: 1,
+    category_counts: { station: 1 },
+    timestamp: position.timestamp,
+  });
+  cache.set(key, { body, expires: Date.now() + 5000 });
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Cache-Control', 'public, max-age=5');
+  res.end(body);
 }
 
 async function publicNewsHandler(req: IncomingMessage, res: ServerResponse) {
@@ -229,16 +369,14 @@ async function publicNewsHandler(req: IncomingMessage, res: ServerResponse) {
         const text = `${a.title} ${a.description} ${a.source} ${a.country}`.toLowerCase();
         return keywords.some(k => text.includes(k));
       });
-      if (matched.length >= 3) {
-        articles = matched;
-      }
+      articles = matched;
     }
   }
 
   // Filter by category if specified
   if (categoryParam && categoryParam !== 'all') {
     const catFiltered = articles.filter(a => a.category.toLowerCase() === categoryParam);
-    if (catFiltered.length >= 5) articles = catFiltered;
+    articles = catFiltered;
   }
 
   // Prioritize articles with rich editorial photos
@@ -315,9 +453,220 @@ async function nasaCadHandler(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+// ─────────────────────────────────────────────
+// SSRF-Protected Proxy: NASA FIRMS
+// ─────────────────────────────────────────────
+async function firmsProxyHandler(_req: IncomingMessage, res: ServerResponse) {
+  const key = process.env.FIRMS_MAP_KEY?.trim();
+  if (!key) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'FIRMS_MAP_KEY not configured', data: [] }));
+    return;
+  }
+  const cacheKey = '__firms_fires__';
+  const hit = cache.get(cacheKey);
+  if (hit && hit.expires > Date.now()) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(hit.body);
+    return;
+  }
+  try {
+    const upstream = await fetch(
+      `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${key}/VIIRS_SNPP_NRT/world/1`,
+      { signal: AbortSignal.timeout(15000), headers: { 'User-Agent': 'VIGIL/1.0' } }
+    );
+    if (!upstream.ok) throw new Error(`FIRMS returned ${upstream.status}`);
+    const csv = await upstream.text();
+    const lines = csv.trim().split('\n');
+    const header = lines[0]?.split(',') || [];
+    const latIdx = header.indexOf('latitude');
+    const lonIdx = header.indexOf('longitude');
+    const frpIdx = header.indexOf('frp');
+    const confIdx = header.indexOf('confidence');
+    const points: { lat: number; lon: number; frp: number; confidence: string }[] = [];
+    for (let i = 1; i < Math.min(lines.length, 2000); i++) {
+      const cols = lines[i].split(',');
+      const lat = parseFloat(cols[latIdx]);
+      const lon = parseFloat(cols[lonIdx]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      points.push({ lat, lon, frp: parseFloat(cols[frpIdx]) || 0, confidence: cols[confIdx] || 'n' });
+    }
+    const body = JSON.stringify({ data: points, total: points.length });
+    cache.set(cacheKey, { body, expires: Date.now() + 600000 }); // 10m cache
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.end(body);
+  } catch (err: any) {
+    res.writeHead(502);
+    res.end(JSON.stringify({ error: 'FIRMS proxy error', message: err.message, data: [] }));
+  }
+}
+
+// ─────────────────────────────────────────────
+// SSRF-Protected Proxy: TomTom Traffic Incidents
+// ─────────────────────────────────────────────
+async function tomtomProxyHandler(req: IncomingMessage, res: ServerResponse) {
+  const key = process.env.TOMTOM_API_KEY?.trim();
+  if (!key) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'TOMTOM_API_KEY not configured', incidents: [] }));
+    return;
+  }
+  const cacheKey = '__tomtom_traffic__';
+  const hit = cache.get(cacheKey);
+  if (hit && hit.expires > Date.now()) {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(hit.body);
+    return;
+  }
+  try {
+    // Bounding box: rough world view (limited to high-traffic areas)
+    const bbox = '-10,35,40,60'; // Europe focus
+    const upstream = await fetch(
+      `https://api.tomtom.com/traffic/services/5/incidentDetails?key=${key}&bbox=${bbox}&fields=%7Bincidents%7Btype%2Cgeometry%7Bcoordinates%7D%2Cproperties%7BiconCategory%2Cdescription%2Cdelay%7D%7D%7D&language=en-US`,
+      { signal: AbortSignal.timeout(10000), headers: { Accept: 'application/json' } }
+    );
+    if (!upstream.ok) throw new Error(`TomTom returned ${upstream.status}`);
+    const data = await upstream.json();
+    const body = JSON.stringify(data);
+    cache.set(cacheKey, { body, expires: Date.now() + 300000 }); // 5m cache
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.end(body);
+  } catch (err: any) {
+    res.writeHead(502);
+    res.end(JSON.stringify({ error: 'TomTom proxy error', message: err.message, incidents: [] }));
+  }
+}
+
+// ─────────────────────────────────────────────
+// PowerUp: Credential status & save
+// ─────────────────────────────────────────────
+function powerUpStatusHandler(_req: IncomingMessage, res: ServerResponse) {
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify({
+    cesiumIon: !!process.env.CESIUM_ION_TOKEN,
+    googleMaps: !!process.env.GOOGLE_MAPS_KEY,
+    aisstream: !!process.env.AISSTREAM_API_KEY,
+    nasaFirms: !!process.env.FIRMS_MAP_KEY,
+    tomtom: !!process.env.TOMTOM_API_KEY,
+    openai: !!process.env.OPENAI_API_KEY,
+    openskyAuth: !!process.env.OPENSKY_CLIENT_ID,
+  }));
+}
+
+async function powerUpSaveHandler(req: IncomingMessage, res: ServerResponse) {
+  let body = '';
+  for await (const chunk of req) body += chunk;
+  try {
+    const keys = JSON.parse(body);
+    if (typeof keys !== 'object' || keys === null) throw new Error('Invalid body');
+    // Only allow known env key names
+    const allowed = new Set(['CESIUM_ION_TOKEN', 'GOOGLE_MAPS_KEY', 'AISSTREAM_API_KEY', 'FIRMS_MAP_KEY', 'TOMTOM_API_KEY', 'OPENAI_API_KEY', 'OPENSKY_CLIENT_ID']);
+    const lines: string[] = [];
+    // Preserve existing .env.local entries
+    try {
+      const { readFileSync } = await import('node:fs');
+      const existing = readFileSync('.env.local', 'utf-8');
+      for (const line of existing.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) { lines.push(line); continue; }
+        const eqIdx = trimmed.indexOf('=');
+        const k = eqIdx > 0 ? trimmed.slice(0, eqIdx) : '';
+        if (allowed.has(k) && keys[k] !== undefined) continue; // will be overwritten
+        lines.push(line);
+      }
+    } catch { /* no existing file */ }
+    for (const [k, v] of Object.entries(keys)) {
+      if (allowed.has(k) && typeof v === 'string' && v.trim()) {
+        lines.push(`${k}=${v.trim()}`);
+        process.env[k] = v.trim(); // hot-reload in process
+      }
+    }
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync('.env.local', lines.join('\n') + '\n', 'utf-8');
+    res.setHeader('Content-Type', 'application/json');
+    res.end('{"ok":true}');
+  } catch (err: any) {
+    res.writeHead(400);
+    res.end(JSON.stringify({ ok: false, message: err.message }));
+  }
+}
+
 // Fixed upstream only: this is not an arbitrary URL proxy.
 export function publicFeedHandler(req: IncomingMessage, res: ServerResponse, next: () => void) {
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+  if (pathname === '/public-feeds/satellites') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+    satelliteCatalog().then(data => { res.writeHead(200, { 'Content-Type':'application/json' }); res.end(JSON.stringify(data)); })
+      .catch(() => { res.writeHead(503, { 'Content-Type':'application/json' }); res.end('{"error":"Orbital catalog unavailable"}'); });
+    return;
+  }
+
+  const restoredFeeds = new Set(['flights', 'satellites', 'cctv', 'conflicts', 'cyber-threats', 'news', 'maritime', 'gdelt', 'live-news', 'health', 'cables']);
+  const restoredName = pathname.replace('/public-feeds/osiris/', '');
+  if (pathname.startsWith('/public-feeds/osiris/') && restoredFeeds.has(restoredName)) {
+    if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+    const cached = cache.get(`osiris:${restoredName}`);
+    if (cached && cached.expires > Date.now()) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(cached.body); return; }
+    const upstream = restoredName === 'cables' ? 'https://www.osirisai.live/data/submarine-cables.json' : `https://www.osirisai.live/api/${restoredName}${restoredName === 'cctv' ? '?region=all' : ''}`;
+    fetch(upstream, { signal: AbortSignal.timeout(restoredName === 'satellites' ? 120000 : 18000), headers: { Accept: 'application/json' } })
+      .then(async response => {
+        if (!response.ok) throw new Error(`Provider HTTP ${response.status}`);
+        const data = await response.json();
+        if (data.error) throw new Error(String(data.error));
+        const body = JSON.stringify(data);
+        cache.set(`osiris:${restoredName}`, { expires: Date.now() + (restoredName === 'cables' ? 3600000 : restoredName === 'satellites' ? 60000 : 30000), body });
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(body);
+      }).catch(() => { if (!res.writableEnded) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: `${restoredName} provider unavailable` })); } });
+    return;
+  }
+
+  // ── PowerUp endpoints ──
+  if (pathname === '/api/powerup/status') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end('{"error":"GET required"}'); return; }
+    powerUpStatusHandler(req, res);
+    return;
+  }
+  if (pathname === '/api/powerup/save-keys') {
+    if (req.method !== 'POST') { res.writeHead(405); res.end('{"error":"POST required"}'); return; }
+    powerUpSaveHandler(req, res).catch(() => { if (!res.writableEnded) { res.writeHead(500); res.end('{"error":"Save failed"}'); } });
+    return;
+  }
+
+  // ── SSRF-protected proxies ──
+  if (pathname === '/api/proxy/firms') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end('{"error":"GET required"}'); return; }
+    firmsProxyHandler(req, res).catch(() => { if (!res.writableEnded) { res.writeHead(502); res.end('{"error":"FIRMS proxy error","data":[]}'); } });
+    return;
+  }
+  if (pathname === '/api/proxy/tomtom') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end('{"error":"GET required"}'); return; }
+    tomtomProxyHandler(req, res).catch(() => { if (!res.writableEnded) { res.writeHead(502); res.end('{"error":"TomTom proxy error","incidents":[]}'); } });
+    return;
+  }
+
+  // ── Existing public feed routes ──
+  if (pathname === '/public-feeds/earthquakes') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end('{"error":"GET required"}'); return; }
+    usgsEarthquakesHandler(req, res).catch(() => { if (!res.writableEnded) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end('{"error":"USGS feed unavailable"}'); } });
+    return;
+  }
+  if (pathname === '/public-feeds/bitcoin') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end('{"error":"GET required"}'); return; }
+    bitcoinPriceHandler(req, res).catch(() => { if (!res.writableEnded) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end('{"error":"CoinGecko feed unavailable"}'); } });
+    return;
+  }
+  if (pathname === '/public-feeds/wildfires' || pathname === '/public-feeds/weather-alerts') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end('{"error":"GET required"}'); return; }
+    publicGeoFeedHandler(pathname.endsWith('wildfires') ? 'wildfires' : 'weather-alerts', res).catch(() => { if (!res.writableEnded) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end('{"error":"Geographic feed unavailable"}'); } });
+    return;
+  }
+  if (pathname === '/public-feeds/iss') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end('{"error":"GET required"}'); return; }
+    issPositionHandler(req, res).catch(() => { if (!res.writableEnded) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end('{"error":"ISS position unavailable"}'); } });
+    return;
+  }
   if (pathname === '/public-feeds/news') {
     if (req.method !== 'GET') { res.writeHead(405); res.end('{"error":"GET required"}'); return; }
     publicNewsHandler(req, res).catch(() => { if (!res.writableEnded) { res.writeHead(502); res.end('{"articles":[],"error":"News providers unavailable"}'); } });

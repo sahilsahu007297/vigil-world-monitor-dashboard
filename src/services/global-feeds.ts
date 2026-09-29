@@ -11,7 +11,7 @@
 
 // ──────────────────── Configuration ────────────────────
 
-const PROXY_BASE = "/api";
+const PROXY_BASE = "/public-feeds/osiris";
 
 /** Recommended polling intervals per feed (seconds). */
 export const POLL_INTERVALS: Record<string, number> = {
@@ -263,8 +263,8 @@ async function proxyFetch<T>(
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(`${PROXY_BASE}${endpoint}`, {
-        signal,
+      const res = await fetch(`${endpoint.startsWith('/public-feeds/') ? '' : PROXY_BASE}${endpoint}`, {
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000),
         headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new Error(`PROXY ${endpoint} → ${res.status}`);
@@ -294,12 +294,13 @@ export async function checkHealth(signal?: AbortSignal) {
 
 /** USGS earthquakes (M2.5+ recent). */
 export async function fetchEarthquakes(signal?: AbortSignal) {
-  return proxyFetch<GlobalEarthquakesResponse>("/earthquakes", POLL_INTERVALS.earthquakes, signal);
+  return proxyFetch<GlobalEarthquakesResponse>("/public-feeds/earthquakes", POLL_INTERVALS.earthquakes, signal);
 }
 
 /** Live ADS-B flight positions. */
 export async function fetchFlights(signal?: AbortSignal) {
-  return proxyFetch<GlobalFlightsResponse>("/flights", POLL_INTERVALS.flights, signal);
+  const timedSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000);
+  return proxyFetch<GlobalFlightsResponse>("/flights", POLL_INTERVALS.flights, timedSignal);
 }
 
 /** Global conflict zones with live events. */
@@ -323,8 +324,28 @@ export async function fetchCameras(signal?: AbortSignal) {
 }
 
 /** Satellites TLE data and computed positions. */
+let satelliteLoad: Promise<{ data: GlobalSatellitesResponse; state: FeedState }> | null = null;
 export async function fetchSatellites(signal?: AbortSignal) {
-  return proxyFetch<GlobalSatellitesResponse>("/satellites", POLL_INTERVALS.satellites, signal);
+  const cached = getCached<GlobalSatellitesResponse>('full-satellite-catalog');
+  if (cached) return { data: cached, state: 'live' as const };
+  if (satelliteLoad) return satelliteLoad;
+  satelliteLoad = (async () => {
+    try {
+      const timeout = AbortSignal.timeout(125000);
+      const response = await fetch('/public-feeds/satellites', { signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+      if (!response.ok) throw new Error(`Satellite catalog HTTP ${response.status}`);
+      const data = await response.json() as GlobalSatellitesResponse;
+      if (!Array.isArray(data.satellites) || !data.satellites.length) throw new Error('Satellite catalog empty');
+      setCache('full-satellite-catalog', data, 60);
+      return { data, state: 'live' as const };
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      const response = await fetch('/public-feeds/iss', { signal, headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error(`Satellite sources unavailable (${response.status})`);
+      return { data: await response.json() as GlobalSatellitesResponse, state: 'live' as const };
+    }
+  })();
+  try { return await satelliteLoad; } finally { satelliteLoad = null; }
 }
 
 /** Invalidate a specific cached endpoint. */

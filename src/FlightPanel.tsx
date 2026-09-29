@@ -23,7 +23,7 @@ export default function FlightPanel({ flights, status, onSelect, reportedCounts 
   const commercialCount = reportedCounts?.commercial ?? flights.length - militaryCount;
   const totalCount = reportedCounts?.total ?? flights.length;
   return <div className="feed-explorer">
-    <h3>Flight search</h3><p>Airplanes.live + ADSB.lol fallback · worldwide lookup</p>
+    <h3>Flight search</h3><p>Observed ADS-B positions from the connected feed. Identifier search uses public receiver networks.</p>
     <div className="flight-counts" aria-label="Current reported flight counts"><div><span>COMMERCIAL</span><strong>{commercialCount.toLocaleString()}</strong></div><div><span>MILITARY</span><strong>{militaryCount.toLocaleString()}</strong></div><div><span>TOTAL</span><strong>{totalCount.toLocaleString()}</strong></div></div>
     <form onSubmit={e => { e.preventDefault(); setRequest({ kind, query }); }}>
       <select aria-label="Flight identifier type" value={kind} onChange={e => setKind(e.target.value as SearchKind)}><option value="callsign">Callsign</option><option value="hex">ICAO hex</option><option value="reg">Registration</option><option value="type">Aircraft type</option></select>
@@ -32,8 +32,8 @@ export default function FlightPanel({ flights, status, onSelect, reportedCounts 
     </form>
     <p role="status">{results === null ? status : message}</p>
     {results !== null && <button onClick={() => { setRequest(null); setResults(null); }}>Return to map traffic</button>}
-    <small>Map traffic: within 250 nautical miles of the map center. Pan to load another region. Missing aircraft are never simulated.</small>
-    {(results ?? flights).map(f => <button className="feed-result" key={f.icao24} onClick={() => onSelect(f)}><strong>{f.callsign || f.registration || f.icao24}</strong><span>{f.type || 'Unknown type'} · {f.registration || f.icao24}</span><small>{hasPosition(f) ? `${f.lat.toFixed(2)}°, ${f.lng.toFixed(2)}°` : 'No recent position'} · Open dossier</small></button>)}
+    <small>{results === null ? `Showing up to 100 of ${flights.length.toLocaleString()} received aircraft. Search an identifier for more.` : "Search results from public ADS-B receivers."} Missing aircraft are never simulated.</small>
+    {(results ?? flights).slice(0, 100).map(f => <button className="feed-result" key={f.icao24} onClick={() => onSelect(f)}><strong>{f.callsign || f.registration || f.icao24}</strong><span>{f.type || 'Unknown type'} · {f.registration || f.icao24}</span><small>{hasPosition(f) ? `${f.lat.toFixed(2)}°, ${f.lng.toFixed(2)}°` : 'No recent position'} · Open dossier</small></button>)}
     <p><a href="https://github.com/xSNOWM4Nx/react-flight-tracker" target="_blank" rel="noreferrer">Map adapted from react-flight-tracker (MIT)</a></p>
   </div>;
 }

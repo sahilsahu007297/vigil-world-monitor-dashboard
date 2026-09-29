@@ -11,9 +11,11 @@
     "start": "node --env-file-if-exists=.env.local server/start.mjs",
     "test:feed-server": "node --test tests/aircraft-route.test.mjs tests/news-route.test.mjs",
     "test:feeds": "playwright test",
-    "format": "oxfmt"
+    "format": "oxfmt",
+    "doctor": "node scripts/doctor.mjs"
   },
   "dependencies": {
+    "cesium": "^1.145.0",
     "d3-geo": "^3.1.1",
     "d3-geo-projection": "^4.0.0",
     "lucide-react": "^1.41.0",

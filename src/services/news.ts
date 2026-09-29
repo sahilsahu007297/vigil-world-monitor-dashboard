@@ -1,4 +1,4 @@
-import { sampleNews, type NewsArticle, type NewsCategory } from "../newsdata";
+import { type NewsArticle, type NewsCategory } from "../newsdata";
 
 export type LiveNewsParams = {
   query?: string;
@@ -30,7 +30,7 @@ export function formatTimeAgo(dateStr: string): string {
   return `${Math.round(mins / 1440)}d ago`;
 }
 
-export async function fetchLiveNews(params: LiveNewsParams = {}): Promise<{ articles: NewsArticle[]; status: "live" | "sample" }> {
+export async function fetchLiveNews(params: LiveNewsParams = {}): Promise<{ articles: NewsArticle[]; status: "live" | "unavailable" }> {
   const { query = "", category = "all", country = "", source = "", signal } = params;
 
   try {
@@ -66,7 +66,7 @@ export async function fetchLiveNews(params: LiveNewsParams = {}): Promise<{ arti
         return {
           id: item.id || `news-${index}`,
           title: item.title || "Untitled report",
-          description: item.description || "Live monitored report from verified news desk.",
+          description: item.description || item.title || "",
           source: item.source || domain || "Google News",
           channel: source || "live-feed",
           time: formatTimeAgo(item.published),
@@ -81,19 +81,7 @@ export async function fetchLiveNews(params: LiveNewsParams = {}): Promise<{ arti
       return { articles, status: "live" };
     }
   } catch (err) {
-    console.warn("Primary news endpoint failed, using fallback:", err);
+    console.warn("News endpoint unavailable:", err);
   }
-
-  // Resilient fallback filtering
-  let filtered = [...sampleNews];
-  if (country && country !== "Global") {
-    const byCountry = filtered.filter(a => a.country.toLowerCase() === country.toLowerCase());
-    if (byCountry.length > 0) filtered = byCountry;
-  }
-  if (category && category !== "all") {
-    const byCat = filtered.filter(a => a.category === category);
-    if (byCat.length > 0) filtered = byCat;
-  }
-
-  return { articles: filtered, status: "sample" };
+  return { articles: [], status: "unavailable" };
 }

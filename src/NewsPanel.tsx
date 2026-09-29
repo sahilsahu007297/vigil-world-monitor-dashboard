@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { newsChannels, sampleNews, type NewsArticle, type NewsCategory } from "./newsdata";
+import { newsChannels, type NewsArticle, type NewsCategory } from "./newsdata";
 import { fetchLiveNews } from "./services/news";
 
 type NewsPanelProps = {
@@ -12,8 +12,8 @@ export default function NewsPanel({ onClose }: NewsPanelProps) {
   const [country, setCountry] = useState("India");
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSearch, setActiveSearch] = useState("");
-  const [articles, setArticles] = useState<NewsArticle[]>(sampleNews);
-  const [status, setStatus] = useState<"loading" | "live" | "sample">("loading");
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [status, setStatus] = useState<"loading" | "live" | "unavailable">("loading");
 
   const selectedChannelData = newsChannels.find((c) => c.id === selectedChannel) || newsChannels[0];
   const countries = useMemo(
@@ -71,7 +71,7 @@ export default function NewsPanel({ onClose }: NewsPanelProps) {
       <div className="news-header">
         <div>
           <h2>Global & Live News Desk</h2>
-          <p>Multi-source verification via Google News, BBC, The Guardian, NDTV, Times of India & Sky News.</p>
+          <p>Published reports from Google News and public publisher feeds. Headlines are attributed to their sources.</p>
         </div>
         {onClose && <button className="close-btn" onClick={onClose} aria-label="Close news modal">×</button>}
       </div>
@@ -156,7 +156,7 @@ export default function NewsPanel({ onClose }: NewsPanelProps) {
           {activeSearch && <span className="feed-search-scope">Matching &ldquo;{activeSearch}&rdquo;</span>}
         </div>
         <span className={status === "live" ? "feed live" : "feed sample"}>
-          {status === "loading" ? "SCANNING LIVE FEEDS…" : status === "live" ? "LIVE VERIFIED" : "FALLBACK CACHE"}
+          {status === "loading" ? "SCANNING LIVE FEEDS…" : status === "live" ? "PUBLISHED FEEDS" : "FEED UNAVAILABLE"}
         </span>
       </div>
 

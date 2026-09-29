@@ -8,14 +8,16 @@ async function json(url: string, signal?: AbortSignal) {
 }
 
 export async function publicCameras(signal?: AbortSignal) {
+  try {
+    const { data, state } = await fetchCameras(signal);
+    if (state === 'live' && Array.isArray(data.cameras) && data.cameras.length > 0) {
+      return {
+        cameras: data.cameras.filter(camera => Number.isFinite(camera.lat) && Number.isFinite(camera.lng)).map(camera => ({ ...camera, source: camera.source || 'Public CCTV aggregator' })),
+        errors: [],
+      };
+    }
+  } catch { /* Try individual public agencies below. */ }
   const feeds = await Promise.allSettled([
-    fetchCameras(signal).then(({ data }) => {
-      if (!Array.isArray(data.cameras)) throw new Error('Worldwide CCTV response did not include cameras');
-      return data.cameras.map((camera): GlobalCamera => ({
-        ...camera,
-        source: camera.source || 'OSIRIS public CCTV aggregator',
-      }));
-    }),
     json('https://api.data.gov.sg/v1/transport/traffic-images', signal).then(data => {
       if (!Array.isArray(data.items?.[0]?.cameras)) throw new Error('Unexpected camera response');
       return data.items[0].cameras.map((c: any): GlobalCamera => ({ id: `sg-${c.camera_id}`, name: `Singapore traffic ${c.camera_id}`, lat: c.location.latitude, lng: c.location.longitude, city: 'Singapore', country: 'Singapore', source: 'LTA / data.gov.sg', feed_url: c.image, stream_type: 'snapshot', captured_at: c.timestamp, external_url: 'https://data.gov.sg/datasets/d_6cdb6b405b25aaaacbaf7689bcc6fae0/view' }));
@@ -47,7 +49,7 @@ export async function publicCameras(signal?: AbortSignal) {
       }));
     }),
   ]);
-  const names = ['Worldwide open CCTV aggregator', 'Singapore LTA', 'London TfL', 'Finland Digitraffic', 'NYC Open Data'];
+  const names = ['Singapore LTA', 'London TfL', 'Finland Digitraffic', 'NYC Open Data'];
   const cameras = feeds.flatMap(f => f.status === 'fulfilled' ? f.value : [])
     .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng));
   const unique = [...new Map(cameras.map(camera => [`${camera.id}:${camera.lat}:${camera.lng}`, camera])).values()];
