@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import * as satellite from 'satellite.js';
 import { satelliteCatalog } from './satellite-catalog.ts';
+import { restoredPublicFeed } from './restored-public-feeds.ts';
 
 const cache = new Map<string, { expires: number; body: string }>();
 let queue: Promise<unknown> = Promise.resolve();
@@ -526,11 +527,12 @@ export function publicFeedHandler(req: IncomingMessage, res: ServerResponse, nex
     if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
     const cached = cache.get(`osiris:${restoredName}`);
     if (cached && cached.expires > Date.now()) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(cached.body); return; }
-    const upstream = restoredName === 'cables' ? 'https://www.osirisai.live/data/submarine-cables.json' : `https://www.osirisai.live/api/${restoredName}${restoredName === 'cctv' ? '?region=all' : ''}`;
-    fetch(upstream, { signal: AbortSignal.timeout(restoredName === 'satellites' ? 120000 : 18000), headers: { Accept: 'application/json' } })
-      .then(async response => {
-        if (!response.ok) throw new Error(`Provider HTTP ${response.status}`);
-        const data = await response.json();
+    const direct = ['flights', 'maritime', 'cables', 'gdelt'].includes(restoredName);
+    const request = direct ? restoredPublicFeed(restoredName) : fetch(`https://www.osirisai.live/api/${restoredName}`, { signal: AbortSignal.timeout(18000), headers: { Accept: 'application/json' } }).then(response => {
+      if (!response.ok) throw new Error(`Provider HTTP ${response.status}`);
+      return response.json();
+    });
+    request.then(data => {
         if (data.error) throw new Error(String(data.error));
         const body = JSON.stringify(data);
         cache.set(`osiris:${restoredName}`, { expires: Date.now() + (restoredName === 'cables' ? 3600000 : restoredName === 'satellites' ? 60000 : 30000), body });
@@ -610,7 +612,7 @@ export function publicFeedHandler(req: IncomingMessage, res: ServerResponse, nex
     if (res.destroyed) return;
     nextRequest = Date.now() + 1100;
     try {
-      const contact = process.env.FLIGHT_API_CONTACT?.trim();
+      const contact = process.env.FLIGHT_API_CONTACT?.trim() || 'https://vigil-world-monitor-dashboard.vercel.app';
       if (!contact || !/^(https:\/\/[^\s]+|[^\s@]+@[^\s@]+\.[^\s@]+)$/.test(contact)) {
         res.writeHead(503); res.end('{"error":"Set FLIGHT_API_CONTACT to your public project URL or contact email. ADSB.lol requires contact information in server requests."}'); return;
       }

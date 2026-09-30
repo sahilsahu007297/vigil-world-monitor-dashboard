@@ -17,6 +17,7 @@ export type GeoMarker = {
   mag?: number;
   heading?: number;
   flight?: GlobalFlight;
+  cameraId?: string;
 };
 
 export const KIND_COLOR: Record<GeoMarker["kind"], string> = {
@@ -99,6 +100,7 @@ export default function Globe({
 
     const DARK_BASEMAP_STYLE: maplibregl.StyleSpecification = {
       version: 8,
+      glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
       sources: {
         "esri-dark": {
           type: "raster",
@@ -280,6 +282,7 @@ export default function Globe({
           source: "cell-towers",
           layout: {
             visibility: cellTowersEnabled ? "visible" : "none",
+            "text-font": ["Noto Sans Regular"],
             "text-field": ["get", "operator"],
             "text-size": 9.5,
             "text-offset": [0, 1.4],
@@ -320,6 +323,7 @@ export default function Globe({
           source: "markers",
           layout: {
             "text-field": ["get", "label"],
+            "text-font": ["Noto Sans Regular"],
             "text-size": 10,
             "text-offset": [0, 1.5],
             "text-allow-overlap": false,
@@ -383,6 +387,8 @@ export default function Globe({
           satLayerRef.current = createSatelliteLayer('sat-3d');
           map.current.addLayer(satLayerRef.current as any);
         }
+        // Keep ground observations above the satellite overlay.
+        for (const layer of ['markers-layer', 'markers-label', 'flight-icons']) map.current.moveLayer(layer);
 
         if (!flat) {
           try {
@@ -413,6 +419,7 @@ export default function Globe({
           return;
         }
 
+        if (map.current?.queryRenderedFeatures(e.point, { layers: ['markers-layer', 'flight-icons'] }).length) return;
         const satIndex = satLayerRef.current?.pick(e.point.x, e.point.y);
         const satellite = satIndex == null ? undefined : satellitesRef.current[satIndex];
         if (satellite) {
@@ -430,7 +437,7 @@ export default function Globe({
           if (props && props.label) {
             let flight: GlobalFlight | undefined;
             try { flight = props.flight ? JSON.parse(props.flight) as GlobalFlight : undefined; } catch { flight = undefined; }
-            onSelectRef.current({ lon: flight?.lng ?? e.lngLat.lng, lat: flight?.lat ?? e.lngLat.lat, kind: props.kind || "infra", label: props.label, detail: props.detail, heading: props.heading == null ? undefined : Number(props.heading), flight });
+            onSelectRef.current({ lon: flight?.lng ?? e.lngLat.lng, lat: flight?.lat ?? e.lngLat.lat, kind: props.kind || "infra", label: props.label, detail: props.detail, cameraId: props.cameraId, heading: props.heading == null ? undefined : Number(props.heading), flight });
           }
         }
       });
@@ -533,6 +540,7 @@ export default function Globe({
     if (!map.current) return;
     const update = () => {
       safeSetProjection(flat);
+      if (map.current?.getLayer('satellite-points')) map.current.setLayoutProperty('satellite-points', 'visibility', flat ? 'visible' : 'none');
     };
     if (map.current.isStyleLoaded()) update();
     else {
@@ -711,11 +719,12 @@ export default function Globe({
         properties: {
           label: m.label,
           detail: m.detail,
+          cameraId: m.cameraId,
           kind: m.kind,
           heading: m.heading,
           flight: m.flight ? JSON.stringify(m.flight) : undefined,
-          color: m.flight ? aircraftColor(m.flight.alt) : KIND_COLOR[m.kind] || "#ffffff",
-          radius: m.kind === "conflict" ? 6 : m.kind === "hazard" ? (3 + (m.mag || 0)) : 4,
+          color: m.cameraId ? "#00e5ff" : m.flight ? aircraftColor(m.flight.alt) : KIND_COLOR[m.kind] || "#ffffff",
+          radius: m.cameraId ? 6 : m.kind === "conflict" ? 6 : m.kind === "hazard" ? (3 + (m.mag || 0)) : 4,
         },
       })),
     };
@@ -738,7 +747,7 @@ export default function Globe({
 
   // Update satellites
   useEffect(() => {
-    if (!satLayerRef.current || !map.current) return;
+    if (!map.current) return;
     const visibleSatellites = satellites;
     const pts = visibleSatellites.map(s => ({
       lat: s.lat,
@@ -747,7 +756,10 @@ export default function Globe({
       color: parseColor(s.color),
       size: 3
     }));
+    let cancelled = false;
+    let retry: ReturnType<typeof setTimeout>;
     const trySetSats = () => {
+      if (cancelled) return;
       if (satLayerRef.current) {
         satLayerRef.current.setPoints(pts);
         const source = map.current?.getSource("satellite-points") as maplibregl.GeoJSONSource | undefined;
@@ -760,10 +772,11 @@ export default function Globe({
           })),
         });
       } else {
-        setTimeout(trySetSats, 500);
+        retry = setTimeout(trySetSats, 100);
       }
     };
     trySetSats();
+    return () => { cancelled = true; clearTimeout(retry); };
   }, [satellites]);
 
   return <div ref={mapContainer} style={{ width: "100%", height: "100%", position: "absolute", top: 0, left: 0, zIndex: 1 }} />;

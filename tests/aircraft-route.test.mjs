@@ -15,20 +15,16 @@ test('rejects invalid coordinates and methods without fetching upstream', async 
   assert.equal((await request('https://example.com')).status, 400);
 });
 
-test('requires contact, identifies requests, and caches successful responses', async () => {
+test('identifies requests with the public project URL and caches successful responses', async () => {
   const originalContact = process.env.FLIGHT_API_CONTACT;
   const originalFetch = globalThis.fetch;
   let calls = 0;
   try {
     delete process.env.FLIGHT_API_CONTACT;
-    const missing = await request('hex/800001');
-    assert.equal(missing.status, 503);
-    assert.match(missing.body, /FLIGHT_API_CONTACT/);
-    process.env.FLIGHT_API_CONTACT = 'test@example.invalid';
     globalThis.fetch = async (url, options) => {
       calls++;
       assert.equal(url, 'https://api.adsb.lol/v2/hex/800001');
-      assert.match(options.headers['User-Agent'], /test@example.invalid/);
+      assert.match(options.headers['User-Agent'], /https:\/\/vigil-world-monitor-dashboard.vercel.app/);
       return new Response(JSON.stringify({ ac: [{ hex: '800001', gs: 0 }], now: Date.now() }), { headers: { 'Content-Type': 'application/json' } });
     };
     const first = await request('hex/800001');

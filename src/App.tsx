@@ -561,14 +561,14 @@ export default function App() {
       const result = await publicCameras(controller.signal);
       if (!live) return;
       setGlobalCameras(result.cameras);
-      const cameraStride = Math.max(1, Math.ceil(result.cameras.length / 2500));
-      setCameraMarkers(result.cameras.filter((_, index) => index % cameraStride === 0).map(c => ({ lon: c.lng, lat: c.lat, kind: "infra", label: c.name, detail: `${c.source} · ${c.stream_type || "snapshot"} · published camera` })));
+      setCameraMarkers(result.cameras.map(c => ({ lon: c.lng, lat: c.lat, kind: "infra", cameraId: c.id, label: c.name, detail: `${c.source} · ${c.stream_type || "snapshot"} · published camera` })));
       setCameraStatus(`${result.cameras.length} published cameras. ${result.errors.join(' · ')}`);
       mark("Camera feeds", result.cameras.length ? "live" : "sample");
       setActiveCamera(current => current ? result.cameras.find(c => c.id === current.id) ?? current : null);
     };
-    loadCameras();
-    const interval = window.setInterval(loadCameras, 120000);
+    const refreshCameras = () => { void loadCameras().catch(() => { if (live) setCameraStatus('Camera providers unavailable. Retrying automatically.'); }); };
+    refreshCameras();
+    const interval = window.setInterval(refreshCameras, 120000);
     return () => { live = false; controller.abort(); window.clearInterval(interval); };
   }, []);
 
@@ -604,10 +604,6 @@ export default function App() {
         const withCoordinates = flights.filter(isAircraftPosition);
         const military = flights.filter(f => f.category === "Military");
         const commercial = flights.filter(f => f.category !== "Military");
-        const plotted = (items: GlobalFlight[], limit: number) => {
-          const stride = Math.max(1, Math.ceil(items.length / limit));
-          return items.filter((_, index) => index % stride === 0).slice(0, limit);
-        };
         const totalReported = typeof data.total === "number" ? data.total : flights.length;
         const militaryReported = typeof data.military_flights?.length === "number" ? data.military_flights.length : military.length;
         const commercialReported = typeof data.commercial_flights?.length === "number" ? data.commercial_flights.length + (data.private_flights?.length || 0) : commercial.length;
@@ -617,8 +613,8 @@ export default function App() {
         setMilitaryFlightCount(military.length);
         setCommercialFlightCount(commercial.length);
         setReportedFlightCounts({ commercial: Math.max(commercialReported, totalReported - militaryReported), military: militaryReported, total: Math.max(totalReported, commercialReported + militaryReported) });
-        setFlightMarkers(plotted(withCoordinates.filter(f => f.category === "Military"), 150).map(marker));
-        setCommercialFlightMarkers(plotted(withCoordinates.filter(f => f.category !== "Military"), 450).map(marker));
+        setFlightMarkers(withCoordinates.filter(f => f.category === "Military").map(marker));
+        setCommercialFlightMarkers(withCoordinates.filter(f => f.category !== "Military").map(marker));
         setFlightStatus(`${data.source || 'Aircraft feed'} · ${withCoordinates.length || totalReported} reported aircraft · received ${new Date().toLocaleTimeString()}`);
         mark("Military flights", "live"); mark("Commercial flights", "live");
       } catch (e) {
@@ -1244,7 +1240,7 @@ export default function App() {
                   setSelectedAircraft(marker.flight);
                   return;
                 }
-                const cam = globalCameras.find((c) => c.name === marker.label);
+                const cam = globalCameras.find((c) => marker.cameraId ? c.id === marker.cameraId : c.name === marker.label);
                 if (cam) {
                   setActiveCamera(cam);
                   return;
@@ -1417,7 +1413,7 @@ export default function App() {
             </div>
           )}
 
-          {tab === "Cameras" && <CameraPanel cameras={globalCameras} status={cameraStatus} onSelect={setActiveCamera} />}
+          {tab === "Cameras" && <CameraPanel cameras={globalCameras} status={cameraStatus} onSelect={setActiveCamera} onLocate={camera => { setLayers(old => old.map(layer => layer.label === "Camera feeds" ? { ...layer, active: true } : layer)); setMapTarget([camera.lng, camera.lat]); setZoom(2); }} />}
           {tab === "Weather" && <WeatherPanel snapshot={weatherSnapshot} state={weatherState} />}
           {tab === "Chokepoints" && (
             <>

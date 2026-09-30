@@ -24,7 +24,7 @@ export function useRestoredLayers() {
           const vessels: GeoMarker[] = [], military: GeoMarker[] = [];
           for (const ship of data.ships) {
             if (!Number.isFinite(ship.lat) || !Number.isFinite(ship.lng)) continue;
-            const marker: GeoMarker = { lon: ship.lng, lat: ship.lat, kind: "vessel", label: ship.name || `MMSI ${ship.mmsi}`, detail: `Reported AIS position · MMSI ${ship.mmsi || "not reported"} · ${data.timestamp || "timestamp not reported"}` };
+            const marker: GeoMarker = { lon: ship.lng, lat: ship.lat, kind: "vessel", label: ship.name || `MMSI ${ship.mmsi}`, detail: `${data.source || 'Reported AIS position'} · MMSI ${ship.mmsi || "not reported"} · ${ship.timestamp || data.timestamp || "timestamp not reported"}` };
             if (ship.isMilitary === true || /^(military|naval)$/i.test(ship.category || ship.type || "")) military.push(marker);
             else vessels.push(marker);
           }
