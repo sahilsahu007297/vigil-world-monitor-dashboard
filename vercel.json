@@ -10,6 +10,14 @@
   },
   "rewrites": [
     {
+      "source": "/public-feeds/osiris/cables",
+      "destination": "https://osirisai.live/data/submarine-cables.json"
+    },
+    {
+      "source": "/public-feeds/osiris/:path*",
+      "destination": "https://osirisai.live/api/:path*"
+    },
+    {
       "source": "/public-feeds/:path*",
       "destination": "/api/public-feeds?path=:path*"
     },
