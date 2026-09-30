@@ -28,23 +28,8 @@ export async function publicCameras(signal?: AbortSignal) {
       if (!Array.isArray(data.features)) throw new Error('Unexpected camera response');
       return data.features.filter((c: any) => c.properties.collectionStatus === 'GATHERING' && c.properties.state !== 'REMOVED').flatMap((c: any) => c.properties.presets.filter((p: any) => p.inCollection).map((p: any): GlobalCamera => ({ id: `fi-${p.id}`, name: `${c.properties.name.replaceAll('_', ' ')} · ${p.id}`, lat: c.geometry.coordinates[1], lng: c.geometry.coordinates[0], country: 'Finland', source: 'Fintraffic / Digitraffic', stream_type: 'snapshot', feed_url: `https://weathercam.digitraffic.fi/${p.id}.jpg`, external_url: 'https://www.digitraffic.fi/en/road-traffic/' })));
     }),
-    json('https://data.cityofnewyork.us/resource/i4gi-tjb9.json?$limit=5000', signal).then(data => {
-      if (!Array.isArray(data)) throw new Error('Unexpected NYC camera response');
-      return data.map((camera: any, index: number): GlobalCamera => ({
-        id: `nyc-dot-${camera.id || camera.camera_id || index}`,
-        name: camera.name || camera.location || `NYC DOT traffic camera ${index + 1}`,
-        lat: Number(camera.latitude || camera.lat),
-        lng: Number(camera.longitude || camera.lon || camera.lng),
-        city: 'New York City',
-        country: 'United States',
-        source: 'NYC Open Data / DOT',
-        feed_url: camera.image_url || camera.imageurl || camera.url,
-        stream_type: 'snapshot',
-        external_url: 'https://data.cityofnewyork.us/',
-      }));
-    }),
   ]);
-  const names = ['Worldwide public cameras', 'Singapore LTA', 'London TfL', 'Finland Digitraffic', 'NYC Open Data'];
+  const names = ['Worldwide public cameras', 'Singapore LTA', 'London TfL', 'Finland Digitraffic'];
   const cameras = feeds.flatMap(f => f.status === 'fulfilled' ? f.value : [])
     .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng) && (safeMediaUrl(c.stream_url) || safeMediaUrl(c.feed_url)));
   const unique = [...new Map(cameras.map(camera => [`${cCameraKey(camera)}`, camera])).values()];

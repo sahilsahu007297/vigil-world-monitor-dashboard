@@ -453,6 +453,57 @@ async function nasaCadHandler(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+async function publicCameraCatalog(res: ServerResponse) {
+  const key = 'public:cctv';
+  const cached = cache.get(key);
+  if (cached && cached.expires > Date.now()) {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' });
+    res.end(cached.body);
+    return;
+  }
+
+  const getJson = async (url: string) => {
+    const response = await fetch(url, { signal: AbortSignal.timeout(12000), headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`Camera provider returned ${response.status}`);
+    return response.json() as Promise<any>;
+  };
+  const feeds = await Promise.allSettled([
+    getJson('https://api.data.gov.sg/v1/transport/traffic-images').then(data =>
+      (data.items?.[0]?.cameras || []).map((c: any) => ({
+        id: `sg-${c.camera_id}`, name: `Singapore traffic ${c.camera_id}`,
+        lat: c.location?.latitude, lng: c.location?.longitude,
+        city: 'Singapore', country: 'Singapore', source: 'LTA / data.gov.sg',
+        feed_url: c.image, stream_type: 'snapshot', captured_at: c.timestamp,
+        external_url: 'https://data.gov.sg/datasets/d_6cdb6b405b25aaaacbaf7689bcc6fae0/view',
+      }))),
+    getJson('https://api.tfl.gov.uk/Place/Type/JamCam').then(data =>
+      (Array.isArray(data) ? data : []).filter((c: any) => c.additionalProperties?.some((p: any) => p.key === 'available' && p.value === 'true')).map((c: any) => {
+        const props = Object.fromEntries(c.additionalProperties.map((p: any) => [p.key, p.value])) as Record<string, string>;
+        return { id: c.id, name: c.commonName, lat: c.lat, lng: c.lon,
+          city: 'London', country: 'United Kingdom', source: 'Transport for London',
+          feed_url: props.imageUrl, stream_url: props.videoUrl,
+          stream_type: props.videoUrl ? 'mp4' : 'snapshot', external_url: 'https://tfl.gov.uk/traffic/status/' };
+      })),
+    getJson('https://tie.digitraffic.fi/api/weathercam/v1/stations').then(data =>
+      (data.features || []).filter((c: any) => c.properties?.collectionStatus === 'GATHERING' && c.properties?.state !== 'REMOVED').flatMap((c: any) =>
+        (c.properties.presets || []).filter((p: any) => p.inCollection).map((p: any) => ({
+          id: `fi-${p.id}`, name: `${c.properties.name.replaceAll('_', ' ')} · ${p.id}`,
+          lat: c.geometry?.coordinates?.[1], lng: c.geometry?.coordinates?.[0],
+          country: 'Finland', source: 'Fintraffic / Digitraffic',
+          stream_type: 'snapshot', feed_url: `https://weathercam.digitraffic.fi/${p.id}.jpg`,
+          external_url: 'https://www.digitraffic.fi/en/road-traffic/',
+        })))),
+  ]);
+  const cameras = feeds.flatMap(feed => feed.status === 'fulfilled' ? feed.value : [])
+    .filter(camera => Number.isFinite(camera.lat) && Number.isFinite(camera.lng) &&
+      [camera.stream_url, camera.feed_url].some(url => typeof url === 'string' && url.startsWith('https://')));
+  if (!cameras.length) throw new Error('Camera providers unavailable');
+  const body = JSON.stringify({ cameras, total: cameras.length, timestamp: new Date().toISOString() });
+  cache.set(key, { body, expires: Date.now() + 60000 });
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' });
+  res.end(body);
+}
+
 // ─────────────────────────────────────────────
 // Fixed upstream only: this is not an arbitrary URL proxy.
 export function publicFeedHandler(req: IncomingMessage, res: ServerResponse, next: () => void) {
@@ -466,6 +517,11 @@ export function publicFeedHandler(req: IncomingMessage, res: ServerResponse, nex
 
   const restoredFeeds = new Set(['flights', 'satellites', 'cctv', 'conflicts', 'cyber-threats', 'news', 'maritime', 'gdelt', 'live-news', 'health', 'cables']);
   const restoredName = pathname.replace('/public-feeds/osiris/', '');
+  if (pathname === '/public-feeds/osiris/cctv') {
+    if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+    publicCameraCatalog(res).catch(() => { if (!res.writableEnded) { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end('{"error":"Public camera providers unavailable"}'); } });
+    return;
+  }
   if (pathname.startsWith('/public-feeds/osiris/') && restoredFeeds.has(restoredName)) {
     if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
     const cached = cache.get(`osiris:${restoredName}`);
