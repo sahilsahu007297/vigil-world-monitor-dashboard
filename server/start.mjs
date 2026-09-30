@@ -10,12 +10,6 @@ createServer((req, res) => publicFeedHandler(req, res, async () => {
   try {
     const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
     if (req.method !== 'GET' && req.method !== 'HEAD') { res.writeHead(405); res.end(); return; }
-    // Preserve the dashboard's existing global-feed proxy on production hosting.
-    if (/^\/api\/[a-z-]+$/.test(pathname)) {
-      const response = await fetch(`https://osirisai.live${pathname}`, { signal: AbortSignal.timeout(15000) });
-      res.writeHead(response.status, { 'Content-Type': response.headers.get('content-type') || 'application/json' });
-      res.end(Buffer.from(await response.arrayBuffer())); return;
-    }
     const file = resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!file.startsWith(resolve(root) + sep)) { res.writeHead(403); res.end(); return; }
     const data = await readFile(file);

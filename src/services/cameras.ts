@@ -8,16 +8,11 @@ async function json(url: string, signal?: AbortSignal) {
 }
 
 export async function publicCameras(signal?: AbortSignal) {
-  try {
-    const { data, state } = await fetchCameras(signal);
-    if (state === 'live' && Array.isArray(data.cameras) && data.cameras.length > 0) {
-      return {
-        cameras: data.cameras.filter(camera => Number.isFinite(camera.lat) && Number.isFinite(camera.lng)).map(camera => ({ ...camera, source: camera.source || 'Public CCTV aggregator' })),
-        errors: [],
-      };
-    }
-  } catch { /* Try individual public agencies below. */ }
   const feeds = await Promise.allSettled([
+    fetchCameras(signal).then(({ data }) => {
+      if (!Array.isArray(data.cameras)) throw new Error('Unexpected worldwide camera response');
+      return data.cameras.map((camera): GlobalCamera => ({ ...camera, source: camera.source || 'Public CCTV aggregator' }));
+    }),
     json('https://api.data.gov.sg/v1/transport/traffic-images', signal).then(data => {
       if (!Array.isArray(data.items?.[0]?.cameras)) throw new Error('Unexpected camera response');
       return data.items[0].cameras.map((c: any): GlobalCamera => ({ id: `sg-${c.camera_id}`, name: `Singapore traffic ${c.camera_id}`, lat: c.location.latitude, lng: c.location.longitude, city: 'Singapore', country: 'Singapore', source: 'LTA / data.gov.sg', feed_url: c.image, stream_type: 'snapshot', captured_at: c.timestamp, external_url: 'https://data.gov.sg/datasets/d_6cdb6b405b25aaaacbaf7689bcc6fae0/view' }));
@@ -49,23 +44,16 @@ export async function publicCameras(signal?: AbortSignal) {
       }));
     }),
   ]);
-  const names = ['Singapore LTA', 'London TfL', 'Finland Digitraffic', 'NYC Open Data'];
+  const names = ['Worldwide public cameras', 'Singapore LTA', 'London TfL', 'Finland Digitraffic', 'NYC Open Data'];
   const cameras = feeds.flatMap(f => f.status === 'fulfilled' ? f.value : [])
-    .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng));
-  const unique = [...new Map(cameras.map(camera => [`${camera.id}:${camera.lat}:${camera.lng}`, camera])).values()];
+    .filter(c => Number.isFinite(c.lat) && Number.isFinite(c.lng) && (safeMediaUrl(c.stream_url) || safeMediaUrl(c.feed_url)));
+  const unique = [...new Map(cameras.map(camera => [`${cCameraKey(camera)}`, camera])).values()];
   const errors = feeds.flatMap((f, i) => f.status === 'rejected' ? [`${names[i]}: ${f.reason.message}`] : []);
   return { cameras: unique, errors };
 }
 
-export async function windyCameras(key: string, country: string, offset: number, signal?: AbortSignal) {
-  if (country && !/^[A-Z]{2}$/.test(country)) throw new Error('Use a two-letter country code, e.g. IN, US, JP.');
-  const params = new URLSearchParams({ include: 'location,player,urls', limit: '50', offset: String(offset) });
-  if (country) params.set('countries', country);
-  const response = await fetch(`https://api.windy.com/webcams/api/v3/webcams?${params}`, { headers: { 'x-windy-api-key': key }, signal });
-  if (!response.ok) throw new Error(`Windy unavailable (HTTP ${response.status}). Check your Webcams API key and plan.`);
-  const data = await response.json();
-  if (!Array.isArray(data.webcams)) throw new Error('Unexpected Windy response');
-  return { total: data.total as number, cameras: data.webcams.map((c: any): GlobalCamera => ({ id: `windy-${c.webcamId}`, name: c.title, lat: c.location.latitude, lng: c.location.longitude, city: c.location.city, country: c.location.country, source: 'Windy.com', stream_url: c.player?.live || c.player?.day, stream_type: c.player?.live ? 'embed-live' : 'embed-timelapse', external_url: c.urls?.detail })) };
+function cCameraKey(camera: GlobalCamera) {
+  return `${camera.source}:${camera.id}:${camera.lat}:${camera.lng}`;
 }
 
 export function safeMediaUrl(value?: string) {

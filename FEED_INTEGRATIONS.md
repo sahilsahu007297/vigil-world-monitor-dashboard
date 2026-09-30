@@ -1,23 +1,17 @@
-# Flights and public cameras
+# Public feeds
 
-Open **SEARCH FLIGHTS** or the Aviation tab for exact callsign, registration, ICAO hex, and aircraft-type searches. Results open an aircraft dossier inside the dashboard. Pan the map to load receiver-reported aircraft within 250 nautical miles of the center. The feed refreshes every 30 seconds; sample planes and decorative predicted paths have been removed.
+The dashboard reads public satellite positions from `/public-feeds/satellites`. The server propagates a CelesTrak orbital catalog with SGP4 and refreshes the elements when available. The displayed count is the number of computed positions, not a fixed estimate.
 
-Airplanes.live is attempted first. During verification it rejected project access and its browser response lacked CORS headers. Its provider asks for the project URL and description at contact@airplanes.live. No email has been sent. Until access is granted, ADSB.lol supplies clearly attributed fallback data. Its public API is accessed through a fixed, validated server route to handle browser CORS, with a 15-second cache and serialized requests. Neither provider guarantees global coverage or scheduled route information.
+The Cameras tab combines the public `/public-feeds/osiris/cctv` catalog with NYC Open Data / DOT, Singapore LTA, London TfL, and Finland Digitraffic. Search or filter the returned catalog and reveal 100 more results at a time. Selecting a camera opens its published snapshot, clip, HLS stream, or provider player in the dashboard. Street View is a separate action in the camera viewer. Availability depends on each provider; a published location does not guarantee a working stream.
 
-Open **EXPLORE PUBLIC CAMERAS** or the Cameras tab. The dashboard first loads the open `/api/cctv?region=all` aggregator, which fans out across public traffic authorities and open webcam indexes in North America, Europe, Asia, Africa, Latin America, Australia, and New Zealand. NYC Open Data / DOT, Singapore LTA, London TfL, and Finland Digitraffic are also loaded directly as keyless fallbacks. Search loaded camera names, streets, cities, countries, and providers; load additional results with “Show 50 more.” Camera availability still depends on each participating provider and is not guaranteed for every street or city. An optional Windy Webcams key adds another worldwide provider and embedded live/timelapse players; it is held only in component memory.
+The Aviation layer uses `/public-feeds/osiris/flights` plus the regional ADS-B fallback. Other enabled live layers use the public feed routes under `/public-feeds/*`. Counts represent returned records; an em dash means that a source is unavailable. Geographic reference layers carry a `REF` badge.
 
-The Aviation layer uses the server-backed `/api/flights` aggregation (OpenSky plus ADS-B fallbacks) every 30 seconds. Its `military_flights` and `commercial_flights` arrays are normalized separately before rendering, so the layer counts and aviation tab reflect the current response rather than a client-only regional request.
+The dashboard has no API key setup UI or credential saving endpoint. `FLIGHT_API_CONTACT` may still be set as a public project contact in `.env.local` for the ADSB.lol request header.
 
-## Running and deployment
+## Run and verify
 
-- Development: the existing Vite server includes `/public-feeds/aircraft/...` automatically.
-- Set `FLIGHT_API_CONTACT` to your public project URL or contact email before starting Vite or the production server. ADSB.lol rejects generic server User-Agent headers and requires contact information. This value is sent only in provider request headers; no email is sent. Without it, the fallback explains the missing configuration.
-- Production: use Node 24+, run `npm run build`, then `npm start` (default port 8443; configurable with `PORT`). This serves `dist` and the aircraft route.
-- Static-only deployments must separately host the route in `server/public-feeds.ts` and forward `/public-feeds/aircraft/*` to it. Uploading `dist` alone does not provide the aircraft API route.
-- The production server also preserves the existing `/api/*` global-feed provider. Availability of unrelated feeds depends on that existing service.
+- Node 24+: `npm run build`, then `npm start` (default port 8443).
+- `npx tsc --noEmit` checks types; `npm run test:feed-server` checks the local public feed routes.
+- A static `dist` upload must also host the handlers in `server/public-feeds.ts` or the Vercel function in `api/public-feeds.ts`.
 
-## Verification
-
-`npx tsc --noEmit`, `npm run build`, and `npm run test:feeds` (with Vite running). Playwright uses installed Microsoft Edge. Browser tests mock provider responses to verify fallback attribution, zero-valued telemetry, empty search results, and snapshot viewing. Public endpoint/browser smoke checks are separate because coverage and availability change.
-
-Source links and licenses are in `THIRD_PARTY_NOTICES.md`.
+Provider credits and licenses are in `THIRD_PARTY_NOTICES.md`.

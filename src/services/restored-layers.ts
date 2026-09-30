@@ -28,13 +28,13 @@ export function useRestoredLayers() {
             if (ship.isMilitary === true || /^(military|naval)$/i.test(ship.category || ship.type || "")) military.push(marker);
             else vessels.push(marker);
           }
-          setShips(vessels.slice(0, 400)); setNaval(military.slice(0, 100));
+          setShips(vessels); setNaval(military);
           mark("Vessels · AIS", true); mark("Naval vessels", true);
         }).catch(() => { if (!controller.signal.aborted) { setShips([]); setNaval([]); } mark("Vessels · AIS", false); mark("Naval vessels", false); }),
         json("gdelt").then(data => {
           if (!Array.isArray(data.events)) throw new Error("Invalid incidents response");
           if (controller.signal.aborted) return;
-          setIncidents(data.events.filter((e: any) => Number.isFinite(e.lat) && Number.isFinite(e.lng) && /^https?:\/\//.test(e.url || "")).slice(0, 300).map((e: any): GeoMarker => ({ lon:e.lng, lat:e.lat, kind:"hazard", label:e.name || "Reported incident", detail:`${data.source || "Global incident feed"} · ${e.url}` })));
+          setIncidents(data.events.filter((e: any) => Number.isFinite(e.lat) && Number.isFinite(e.lng) && /^https?:\/\//.test(e.url || "")).map((e: any): GeoMarker => ({ lon:e.lng, lat:e.lat, kind:"hazard", label:e.name || "Reported incident", detail:`${data.source || "Global incident feed"} · ${e.url}` })));
           mark("Global incidents", true);
         }).catch(() => { if (!controller.signal.aborted) setIncidents([]); mark("Global incidents", false); }),
       ]);

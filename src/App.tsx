@@ -5,14 +5,13 @@ import { type NewsArticle } from "./newsdata";
 import { fetchLiveNews, formatTimeAgo } from "./services/news";
 import CameraViewer from "./CameraViewer";
 import CameraPanel from "./CameraPanel";
+import StreetViewModal from "./StreetViewModal";
 import FlightPanel, { AircraftDossier } from "./FlightPanel";
 import { hasPosition, isAircraftPosition, nearbyAircraft } from "./services/airplanes";
 import { publicCameras } from "./services/cameras";
 import { useRestoredLayers } from "./services/restored-layers";
 import vigilLogo from "./Vigil-Logo-optimized.webp";
 import { AlertTriangle, BarChart3, Bluetooth, CloudSun, Database, Eye, Layers, PencilLine, Radio, Radar, Search, SlidersHorizontal, TowerControl, Menu, X, Compass, Tv, Ship, Plane, Truck, Package, Settings, MapPin, Zap, Sparkles, Crosshair, Globe as GlobeIcon, type LucideIcon } from "lucide-react";
-import PowerUpModal from "./components/PowerUpModal";
-import CesiumGlobe from "./globe/CesiumGlobe";
 import {
   fetchEarthquakes,
   fetchConflicts,
@@ -247,84 +246,47 @@ const infrastructurePoints: GeoMarker[] = [
   { lon: 139.7, lat: 35.7, kind: "infra", label: "Tokyo markets", detail: "Economic center and supply-chain signal" },
   { lon: 103.8, lat: 1.3, kind: "infra", label: "SEA internet hub", detail: "Cloud, cable, and outage watch" },
 ];
-const layerMarkerSamples: Record<string, GeoMarker[]> = {
-  "Intelligence hotspots": [
-    { lon: 77.2, lat: 28.6, kind: "conflict", label: "New Delhi intelligence hotspot", detail: "Political, economic, and security correlation" },
-    { lon: 116.4, lat: 39.9, kind: "conflict", label: "Beijing intelligence hotspot", detail: "Regional posture and trade policy signals" },
-  ],
-  "Sanctions pressure": [
-    { lon: -77.0, lat: 38.9, kind: "conflict", label: "Washington sanctions desk", detail: "Sanctions and policy pressure center" },
-    { lon: 37.6, lat: 55.7, kind: "conflict", label: "Moscow sanctions desk", detail: "Energy, defence, and sanctions exposure" },
-  ],
-  "Earthquakes · USGS": [
-    { lon: 142.0, lat: 38.3, kind: "hazard", mag: 5.7, label: "Honshu seismic event", detail: "USGS earthquake sample" },
-    { lon: -117.5, lat: 35.8, kind: "hazard", mag: 4.2, label: "California seismic event", detail: "USGS earthquake sample" },
-  ],
-  "Wildfires · EONET": [
-    { lon: -121.5, lat: 39.2, kind: "hazard", label: "California wildfire", detail: "NASA EONET fire sample" },
-    { lon: 135.5, lat: -25.2, kind: "hazard", label: "Australian wildfire", detail: "NASA EONET fire sample" },
-  ],
-  "Weather alerts": [
-    { lon: -97.0, lat: 38.0, kind: "hazard", label: "NWS severe weather", detail: "US public weather alerts sample" },
-    { lon: 78.0, lat: 22.0, kind: "hazard", label: "India weather alert", detail: "Public weather alert sample" },
-  ],
-  "Protest clusters": [
-    { lon: -74.0, lat: 40.7, kind: "conflict", label: "New York protest cluster", detail: "Public protest activity sample" },
-    { lon: 2.35, lat: 48.86, kind: "conflict", label: "Paris protest cluster", detail: "Public protest activity sample" },
-    { lon: 139.69, lat: 35.68, kind: "conflict", label: "Tokyo protest cluster", detail: "Public protest activity sample" },
-  ],
-  "Dark ships": [
-    { lon: 18.5, lat: 35.0, kind: "vessel", label: "Dark ship signal · Mediterranean", detail: "AIS gap and route anomaly" },
-    { lon: 121.5, lat: 21.5, kind: "vessel", label: "Dark ship signal · Taiwan Strait", detail: "AIS gap and route anomaly" },
-  ],
-  "Waterways": [
-    { lon: 32.35, lat: 30.5, kind: "vessel", label: "Suez waterway", detail: "High-density commercial route" },
-    { lon: 100.6, lat: 2.5, kind: "vessel", label: "Malacca waterway", detail: "High-density commercial route" },
-    { lon: -79.7, lat: 9.1, kind: "vessel", label: "Panama waterway", detail: "High-density commercial route" },
-  ],
-  "Trade routes": [
-    { lon: 9.0, lat: 36.0, kind: "vessel", label: "Europe-Asia trade route", detail: "Global shipping corridor" },
-    { lon: 80.0, lat: 10.0, kind: "vessel", label: "Indian Ocean trade route", detail: "Global shipping corridor" },
-    { lon: -35.0, lat: 15.0, kind: "vessel", label: "Atlantic trade route", detail: "Global shipping corridor" },
-  ],
-  "GPS jamming zones": [
-    { lon: 37.6, lat: 55.7, kind: "hazard", label: "Eastern Europe GPS interference", detail: "Navigation interference sample" },
-    { lon: 34.8, lat: 31.5, kind: "hazard", label: "Eastern Mediterranean GPS interference", detail: "Navigation interference sample" },
-  ],
-  "Internet outages": [
-    { lon: 28.98, lat: 41.0, kind: "infra", label: "Istanbul network outage", detail: "Connectivity disruption sample" },
-    { lon: 77.2, lat: 28.6, kind: "infra", label: "New Delhi network outage", detail: "Connectivity disruption sample" },
-    { lon: 151.2, lat: -33.9, kind: "infra", label: "Sydney network outage", detail: "Connectivity disruption sample" },
-  ],
-  "Camera feeds": [
-    { lon: 77.59, lat: 12.97, kind: "infra", label: "Bengaluru public camera", detail: "Public camera feed sample" },
-    { lon: -0.12, lat: 51.5, kind: "infra", label: "London public camera", detail: "Public camera feed sample" },
-    { lon: 139.7, lat: 35.68, kind: "infra", label: "Tokyo public camera", detail: "Public camera feed sample" },
-  ],
+const referenceLayers: Record<string, GeoMarker[]> = {
+  "Intelligence hotspots": intelligencePoints,
+  "Nuclear facilities": strategicPoints.filter(point => point.label.includes("nuclear") || point.label.includes("Temelin")),
+  "Spaceports": strategicPoints.filter(point => point.kind === "base"),
+  "Critical minerals": strategicPoints.filter(point => point.label.includes("coal")),
+  "AI datacenters": infraPoints.filter(point => point.label.includes("DC cluster")),
+  "Pipelines": infrastructurePoints.filter(point => point.label.includes("pipeline")),
+  "Economic centers": infrastructurePoints.filter(point => point.label.includes("markets")),
+  "Trade routes": chokePoints,
 };
-const fallbackFlightMarkers: GeoMarker[] = [
-  { lon: 77.6, lat: 13.0, kind: "flight", label: "6E 402", detail: "Commercial aircraft · sample position", heading: 72 },
-  { lon: 2.35, lat: 48.86, kind: "flight", label: "AF 276", detail: "Commercial aircraft · sample position", heading: 110 },
-  { lon: -73.78, lat: 40.64, kind: "flight", label: "UA 18", detail: "Commercial aircraft · sample position", heading: 250 },
-  { lon: 37.62, lat: 55.75, kind: "flight", label: "MIL-01", detail: "Military aircraft · sample position", heading: 180 },
-  { lon: 121.47, lat: 31.23, kind: "flight", label: "MIL-02", detail: "Military aircraft · sample position", heading: 315 },
-];
-
 const initialLayers: Layer[] = [
   { label: "Conflict events", count: "—", active: true, kind: "conflict", group: "CONFLICT & SECURITY" },
   { label: "Global incidents", count: "—", active: true, kind: "hazard", group: "CONFLICT & SECURITY" },
+  { label: "Intelligence hotspots", count: "—", active: false, kind: "conflict", group: "CONFLICT & SECURITY" },
+  { label: "Protest clusters", count: "—", active: false, kind: "conflict", group: "CONFLICT & SECURITY" },
+  { label: "Sanctions pressure", count: "—", active: false, kind: "conflict", group: "CONFLICT & SECURITY" },
+  { label: "Military bases", count: "—", active: false, kind: "base", group: "STRATEGIC ASSETS" },
+  { label: "Nuclear facilities", count: "—", active: false, kind: "hazard", group: "STRATEGIC ASSETS" },
+  { label: "Spaceports", count: "—", active: false, kind: "base", group: "STRATEGIC ASSETS" },
   { label: "Satellites · TLE", count: "—", active: true, kind: "infra", group: "STRATEGIC ASSETS" },
+  { label: "Critical minerals", count: "—", active: false, kind: "infra", group: "STRATEGIC ASSETS" },
+  { label: "AI datacenters", count: "—", active: false, kind: "infra", group: "STRATEGIC ASSETS" },
+  { label: "Pipelines", count: "—", active: false, kind: "infra", group: "INFRASTRUCTURE" },
+  { label: "Internet outages", count: "—", active: false, kind: "infra", group: "INFRASTRUCTURE" },
+  { label: "Economic centers", count: "—", active: false, kind: "infra", group: "INFRASTRUCTURE" },
   { label: "Military flights", count: "—", active: true, kind: "flight", group: "AVIATION" },
   { label: "Commercial flights", count: "—", active: true, kind: "flight", group: "AVIATION" },
+  { label: "GPS jamming zones", count: "—", active: false, kind: "hazard", group: "AVIATION" },
   { label: "Waterways", count: "—", active: true, kind: "vessel", group: "MARITIME" },
   { label: "Vessels · AIS", count: "—", active: true, kind: "vessel", group: "MARITIME" },
   { label: "Naval vessels", count: "—", active: true, kind: "vessel", group: "MARITIME" },
+  { label: "Dark ships", count: "—", active: false, kind: "vessel", group: "MARITIME" },
+  { label: "Trade routes", count: "—", active: false, kind: "vessel", group: "MARITIME" },
   { label: "Submarine cables", count: "—", active: false, kind: "cable", group: "INFRASTRUCTURE" },
   { label: "Day / night", count: "3D", active: false, kind: "infra", group: "CLIMATE & HAZARDS" },
   { label: "Earthquakes · USGS", count: "—", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
   { label: "Wildfires · EONET", count: "—", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
   { label: "Weather alerts", count: "—", active: true, kind: "hazard", group: "CLIMATE & HAZARDS" },
+  { label: "Canada alerts", count: "—", active: false, kind: "hazard", group: "CLIMATE & HAZARDS" },
   { label: "Camera feeds", count: "—", active: true, kind: "infra", group: "INFRASTRUCTURE" },
+  { label: "Cell towers · OpenCellID", count: "—", active: false, kind: "infra", group: "INFRASTRUCTURE" },
 ];
 const layerGroups = ["CONFLICT & SECURITY", "STRATEGIC ASSETS", "INFRASTRUCTURE", "AVIATION", "MARITIME", "CLIMATE & HAZARDS"];
 
@@ -362,8 +324,10 @@ function weatherLabel(code: number) {
 }
 
 export default function App() {
+  useEffect(() => { window.localStorage.removeItem("vigil_powerup_keys"); }, []);
   const [launched, setLaunched] = useState(true);
-  const [showPowerUpModal, setShowPowerUpModal] = useState(false);
+  const [streetViewTarget, setStreetViewTarget] = useState<[number, number] | null>(null);
+  const [streetViewMode, setStreetViewMode] = useState(false);
   const [activeNav, setActiveNav] = useState<"BRIEF" | "UNIT MAP" | "SETUP" | "VELOX AERO">("UNIT MAP");
   const [filterMode, setFilterMode] = useState<"City" | "District" | "Street">("City");
   const [showLayersPanel, setShowLayersPanel] = useState(() => window.innerWidth > 850);
@@ -597,8 +561,8 @@ export default function App() {
       const result = await publicCameras(controller.signal);
       if (!live) return;
       setGlobalCameras(result.cameras);
-      const cameraStride = Math.max(1, Math.ceil(result.cameras.length / 120));
-      setCameraMarkers(result.cameras.filter((_, index) => index % cameraStride === 0).slice(0, 120).map(c => ({ lon: c.lng, lat: c.lat, kind: "infra", label: c.name, detail: `${c.source} · ${c.stream_type} · sampled map marker` })));
+      const cameraStride = Math.max(1, Math.ceil(result.cameras.length / 2500));
+      setCameraMarkers(result.cameras.filter((_, index) => index % cameraStride === 0).map(c => ({ lon: c.lng, lat: c.lat, kind: "infra", label: c.name, detail: `${c.source} · ${c.stream_type || "snapshot"} · published camera` })));
       setCameraStatus(`${result.cameras.length} published cameras. ${result.errors.join(' · ')}`);
       mark("Camera feeds", result.cameras.length ? "live" : "sample");
       setActiveCamera(current => current ? result.cameras.find(c => c.id === current.id) ?? current : null);
@@ -803,6 +767,9 @@ export default function App() {
     if (on.has("Global incidents")) out.push(...restored.incidents);
     if (on.has("Vessels · AIS")) out.push(...restored.ships);
     if (on.has("Naval vessels")) out.push(...restored.naval);
+    for (const [label, points] of Object.entries(referenceLayers)) {
+      if (on.has(label)) out.push(...points.map(point => ({ ...point, detail: `Geographic reference · ${point.detail || point.label}` })));
+    }
     if (myLocation) out.push({ lon: myLocation[0], lat: myLocation[1], kind: "base", label: "My live location", detail: "Browser GPS position · live location marker" });
     return out;
   }, [on, quakeMarkers, flightMarkers, commercialFlightMarkers, fireMarkers, weatherMarkers, globalConflictMarkers, cameraMarkers, myLocation, restored.incidents, restored.ships, restored.naval]);
@@ -911,6 +878,7 @@ export default function App() {
   };
   const decorate = (l: Layer): Layer => {
     let liveCount: string | null = null;
+    if (referenceLayers[l.label]) return { ...l, count: String(referenceLayers[l.label].length) };
     if (l.label === "Day / night") return { ...l, count: "3D" };
     if (l.label === "Submarine cables") return { ...l, count: restored.cables ? String(restored.cables.features.length) : "—" };
     if (l.label === "Global incidents" || l.label === "Vessels · AIS" || l.label === "Naval vessels") {
@@ -1025,15 +993,6 @@ export default function App() {
         </button>
 
         <button
-          onClick={() => setShowPowerUpModal(true)}
-          className="glass-action-pill"
-          title="POWER UP — Configure API credentials"
-        >
-          <Zap size={14} />
-          <span>Power Up</span>
-        </button>
-
-        <button
           onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
           className="glass-action-pill"
           aria-label="Toggle theme"
@@ -1132,12 +1091,6 @@ export default function App() {
             >
               ✈ Aircraft
             </button>
-            <button
-              className="glass-select-btn"
-              onClick={() => setShowPowerUpModal(true)}
-            >
-              ⚡ Keys
-            </button>
           </div>
         </aside>
       ) : (
@@ -1202,6 +1155,9 @@ export default function App() {
               <GlobeIcon size={13} />
               <span>2D Map</span>
             </button>
+            <button className={`glass-map-tool-btn ${streetViewMode ? "active" : ""}`} onClick={() => setStreetViewMode(value => !value)} title="Choose a street location on the map">
+              <Eye size={13} /><span>Street View</span>
+            </button>
             <button
               className="glass-map-tool-btn"
               onClick={() => setZoom((z) => Math.min(5, +(z + 0.3).toFixed(2)))}
@@ -1264,38 +1220,8 @@ export default function App() {
           </button>
         )}
 
-        {/* Center Globe Canvas (Cesium 3D Globe or 2D Map) */}
+        {/* Earth imagery and live data on the same 3D/2D map. */}
         <div className="world-map" style={{ width: "100%", height: "100%", position: "absolute", inset: 0 }}>
-          {is3dGlobe ? (
-            <CesiumGlobe
-              dayNight={on.has("Day / night")}
-              cables={on.has("Submarine cables") ? restored.cables : null}
-              markers={globeMarkers}
-              satellites={on.has("Satellites · TLE") ? satellites : []}
-              zoom={zoom}
-              target={mapTarget}
-              onMapCenter={(center) =>
-                setFlightCenter((previous) =>
-                  Math.abs(previous[0] - center[0]) + Math.abs(previous[1] - center[1]) > 0.1
-                    ? center
-                    : previous
-                )
-              }
-              onSelect={(marker, satellite) => {
-                if (marker.flight) {
-                  setSelectedAircraft(marker.flight);
-                  return;
-                }
-                const cam = globalCameras.find((c) => c.name === marker.label);
-                if (cam) {
-                  setActiveCamera(cam);
-                  return;
-                }
-                setSelectedPoint({ marker, satellite });
-              }}
-              onOpenPowerUp={() => setShowPowerUpModal(true)}
-            />
-          ) : (
             <Globe
               cables={on.has("Submarine cables") ? restored.cables : null}
               onMapCenter={(center) =>
@@ -1307,7 +1233,10 @@ export default function App() {
               }
               markers={globeMarkers}
               satellites={on.has("Satellites · TLE") ? satellites : []}
-              flat={true}
+              flat={!is3dGlobe}
+              satelliteEnabled={true}
+              streetViewMode={streetViewMode}
+              onStreetViewClick={coords => { setStreetViewTarget(coords); setStreetViewMode(false); }}
               zoom={zoom}
               target={mapTarget}
               onSelect={(marker, satellite) => {
@@ -1323,7 +1252,6 @@ export default function App() {
                 setSelectedPoint({ marker, satellite });
               }}
             />
-          )}
         </div>
 
         {/* Breaking Alert Marquee Ticker */}
@@ -1578,13 +1506,13 @@ export default function App() {
         <span style={{ color: "#64748b" }}>|</span>
         <span>LATENCY 14MS</span>
         <span style={{ color: "#64748b" }}>|</span>
-        <span>ESRI SATELLITE ENGINE</span>
+        <span>SATELLITE IMAGERY</span>
         <span style={{ color: "#64748b" }}>|</span>
-        <span style={{ color: "#38bdf8" }}>{is3dGlobe ? "CESIUM 3D ACTIVE" : "2D PROJECTION"}</span>
+        <span style={{ color: "#38bdf8" }}>{is3dGlobe ? "3D GLOBE ACTIVE" : "2D PROJECTION"}</span>
       </div>
 
       <div style={{ color: "#94a3b8", letterSpacing: "0.08em" }}>
-        VIGIL OSINT MONITOR · GOD'S EYE PROTOCOL
+        VIGIL OSINT MONITOR · PUBLIC DATA SOURCES
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1655,6 +1583,7 @@ export default function App() {
       <CameraViewer
         camera={activeCamera}
         onClose={() => setActiveCamera(null)}
+        onStreetView={(lat, lng) => { setActiveCamera(null); setStreetViewTarget([lng, lat]); }}
         onLocate={(lat, lng) => {
           setIs3dGlobe(true);
           setMapTarget([lng, lat]);
@@ -1663,12 +1592,7 @@ export default function App() {
         }}
       />
     )}
-    {showPowerUpModal && (
-      <PowerUpModal
-        isOpen={showPowerUpModal}
-        onClose={() => setShowPowerUpModal(false)}
-      />
-    )}
+    {streetViewTarget && <StreetViewModal target={streetViewTarget} onClose={() => setStreetViewTarget(null)} />}
   </main>;
 }
 
@@ -1762,7 +1686,7 @@ function LayerRow({ layer, status, onToggle }: { layer: Layer; status?: "live" |
       <span className={`glass-toggle ${layer.active ? "on" : ""}`}><i /></span>
       <span className="glass-layer-name">
         <span className="glass-layer-label-text">{layer.label}</span>
-        {layer.active && (layer.label === "Submarine cables" || layer.label === "Waterways") ? <em className="glass-live-feed-pill">REF</em> : status === "live" && layer.active && <em className="glass-live-feed-pill">LIVE</em>}
+        {layer.active && (referenceLayers[layer.label] || layer.label === "Submarine cables" || layer.label === "Waterways") ? <em className="glass-live-feed-pill">REF</em> : status === "live" && layer.active && <em className="glass-live-feed-pill">LIVE</em>}
       </span>
       <b className="glass-layer-count-badge">{displayCount}</b>
     </button>
